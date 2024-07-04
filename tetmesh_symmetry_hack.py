@@ -2,15 +2,14 @@
 author: daniel dorda
 """
 
-import igl
 import pyvista as pv
 import numpy as np
 from scipy.spatial import KDTree
 
-from generics.Tetmesh import Tetmesh
+from tetmesh import Tetmesh
 
-dataroot = "C:/Users/ddorda/USZ-SIM/tetmesh"
-tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.ply"
+dataroot = "data"
+tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.obj"
 tetmesh_base_fn = f"{dataroot}/tetmesh"
 tetmesh_reflected_deformed_fn = f"{dataroot}/tetmesh_contour_ref_deformed.obj"
 
@@ -101,40 +100,40 @@ kdt_ele = KDTree(barries)
 d, mapped_element = kdt_ele.query(new_pt[flipped_points])
 print('Done!')
 
-# element_values = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  ## Ersatz for actuations - one per element
-# grid['values'] = element_values
-#
-# element_values_sym = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  ## Ersatz for actuations - one per element
-# element_values_sym[flipped_points] = element_values_sym[mapped_element]
-#
-# grid['values symmetric'] = element_values_sym
-# p = pv.Plotter(shape=(1,2))
-# p.subplot(0, 0)
-# p.add_mesh(grid.copy(), scalars='values', clim=(-1, 1), cmap='magma')
-# p.subplot(0, 1)
-# p.add_mesh(grid, scalars='values symmetric', clim=(-1, 1), cmap='magma')
-# p.add_mesh(x_plane, color='green', opacity=0.5)
-# p.link_views()
-# p.show()
+element_values = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  ## Ersatz for actuations - one per element
+grid['values'] = element_values
 
-## Real actuations
-act = np.load(act_fn)
-act_sym = act.copy()
-act_sym[flipped_points] = act[mapped_element]
-assert not np.allclose(act, act_sym)
+element_values_sym = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  ## Ersatz for actuations - one per element
+element_values_sym[flipped_points] = element_values_sym[mapped_element]
 
-grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
-grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
-
+grid['values symmetric'] = element_values_sym
 p = pv.Plotter(shape=(1,2))
 p.subplot(0, 0)
-p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(1, 5), cmap='RdBu')
+p.add_mesh(grid.copy(), scalars='values', clim=(-1, 1), cmap='magma')
 p.subplot(0, 1)
-p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(1, 5), cmap='RdBu')
-p.add_mesh(x_plane, color='green', opacity=0.2)
+p.add_mesh(grid, scalars='values symmetric', clim=(-1, 1), cmap='magma')
+p.add_mesh(x_plane, color='green', opacity=0.5)
 p.link_views()
 p.show()
-print('Done! Saving...')
 
-np.save(act_out_fn, act_sym)
-print('Saved!')
+## Real actuations
+# act = np.load(act_fn)
+# act_sym = act.copy()
+# act_sym[flipped_points] = act[mapped_element]
+# assert not np.allclose(act, act_sym)
+#
+# grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
+# grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
+#
+# p = pv.Plotter(shape=(1,2))
+# p.subplot(0, 0)
+# p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(1, 5), cmap='RdBu')
+# p.subplot(0, 1)
+# p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(1, 5), cmap='RdBu')
+# p.add_mesh(x_plane, color='green', opacity=0.2)
+# p.link_views()
+# p.show()
+# print('Done! Saving...')
+#
+# np.save(act_out_fn, act_sym)
+# print('Saved!')
