@@ -43,51 +43,77 @@ class MeshWithUV(object):
         self.path = path
         self.parser = ObjParser(path)
         self.vertices, self.faces, self.normals, self.uv_coords = self.parser.parse()
-        print(len(self.vertices), len(self.uv_coords))
-        self.mid_point = 0.4  # hard coded for now, had a better idea (__extract_face_only) but didnt work :(
-        self.values_uv = np.array([u for u, _ in self.uv_coords]) - self.mid_point  # to be replaced with displacement values
-        self.values_3d = None
+
+        self.mid_point_3d = np.mean(self.vertices[:, 0])
+        self.original_values_3d = np.array([v[0] for v in self.vertices]) - self.mid_point_3d  # to be replaced with displacement values
+        self.original_values_3d = self.original_values_3d / np.max(np.abs(self.original_values_3d))
+        
+        self.mid_point_uv = 0.4  # hard coded for now, had a better idea (__extract_face_only) but didnt work :(
         self.kdtree = KDTree(self.uv_coords)
 
+        self.transformed_values_3d = None
+        self.original_values_uv = None
+        self.transformed_values_uv = None
+
     def baseline_transform(self):
+        self.mesh_to_uv()
         self.reflect()
-        self.assign_values_3d()
+        self.uv_to_mesh()
+
+    def mesh_to_uv(self):
+        self.original_values_uv = np.zeros(len(self.uv_coords))
+        counts = np.zeros(len(self.uv_coords))
+        for face in self.faces:
+            for vertex in face:
+                self.original_values_uv[vertex[1] - 1] += self.original_values_3d[vertex[0] - 1]
+                counts[vertex[1] - 1] += 1
+        self.original_values_uv /= counts
+
+    def uv_to_mesh(self):
+        self.transformed_values_3d = np.zeros(len(self.vertices))
+        counts = np.zeros(len(self.vertices))
+        for face in self.faces:
+            for vertex in face:
+                self.transformed_values_3d[vertex[0] - 1] += self.transformed_values_uv[vertex[1] - 1]
+                counts[vertex[0] - 1] += 1
+        self.transformed_values_3d /= counts
 
     def reflect(self):
-        reflected_indices = np.where(self.uv_coords[:, 0] < self.mid_point)
+        reflected_indices = np.where(self.uv_coords[:, 0] < self.mid_point_uv)
         reflected = self.uv_coords.copy()
         # imagine a point is at 0.3 and mid_point=0.4, then we want to reflect it to 0.5
         # hence the formula is 0.4 - 0.3 + 0.4 = 0.5
-        reflected[reflected_indices, 0] = self.mid_point - reflected[reflected_indices, 0] + self.mid_point
+        reflected[reflected_indices, 0] = self.mid_point_uv - reflected[reflected_indices, 0] + self.mid_point_uv
         _, indc = self.kdtree.query(reflected[reflected_indices])
-        self.values_uv[reflected_indices] = self.values_uv[indc]
+        self.transformed_values_uv = self.original_values_uv.copy()
+        self.transformed_values_uv[reflected_indices] = self.original_values_uv[indc]
+        
 
-    def assign_values_3d(self):
-        self.values_3d = np.zeros(len(self.vertices))
-        counts = np.zeros(len(self.vertices))
-        for i, face in enumerate(self.faces):
-            for vertex in face:
-                self.values_3d[vertex[0] - 1] += self.values_uv[vertex[1] - 1]
-                counts[vertex[0] - 1] += 1
-        self.values_3d /= counts
-
-    def draw(self):
+    def visualize_uv(self):
         us = np.array([u for u, _ in self.uv_coords])
         vs = np.array([v for _, v in self.uv_coords])
-        plt.scatter(us, vs, c=self.values_uv, s=1, cmap='magma')
-        plt.axline((self.mid_point, 0), (self.mid_point, 1))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+        ax1.scatter(us, vs, c=self.original_values_uv, s=1, cmap='magma', clim=(-1, 1))
+        ax1.axline((self.mid_point_uv, 0), (self.mid_point_uv, 1))
+        ax2.scatter(us, vs, c=self.transformed_values_uv, s=1, cmap='magma', clim=(-1, 1))
+        ax2.axline((self.mid_point_uv, 0), (self.mid_point_uv, 1))
         plt.show()
 
-    def visualize_3d(self):
+    def visualize_mesh(self):
         # the "3" is required by pyvista, it's the number of vertices per face
         cells = np.array([[3, *[v[0] - 1 for v in face]] for face in self.faces])
         # fill value of 5 to specify VTK_TRIANGLE
         celltypes = np.full(cells.shape[0], fill_value=5, dtype=int)
         grid = pv.UnstructuredGrid(cells, celltypes, self.vertices)
-        grid['values'] = self.values_3d
+        grid['values'] = self.transformed_values_3d
+        grid['original_values'] = self.original_values_3d
         
-        plot = pv.Plotter()
-        plot.add_mesh(grid, scalars='values', cmap='magma')
+        plot = pv.Plotter(shape=(1, 2))
+        plot.subplot(0, 0)
+        plot.add_mesh(grid.copy(), scalars='original_values', cmap='magma', clim=(-1, 1))
+        plot.subplot(0, 1)
+        plot.add_mesh(grid.copy(), scalars='values', cmap='magma', clim=(-1, 1))
+        plot.link_views()
         plot.show()
 
 
@@ -135,4 +161,5 @@ if __name__ == "__main__":
 
     mesh = MeshWithUV('data/face_surface_with_uv.obj')
     mesh.baseline_transform()
-    mesh.visualize_3d()
+    mesh.visualize_uv()
+    mesh.visualize_mesh()
