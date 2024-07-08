@@ -105,14 +105,14 @@ class MeshWithUV(object):
         # fill value of 5 to specify VTK_TRIANGLE
         celltypes = np.full(cells.shape[0], fill_value=5, dtype=int)
         grid = pv.UnstructuredGrid(cells, celltypes, self.vertices)
-        grid['values'] = self.transformed_values_3d
+        grid['transformed_values'] = self.transformed_values_3d
         grid['original_values'] = self.original_values_3d
         
         plot = pv.Plotter(shape=(1, 2))
         plot.subplot(0, 0)
         plot.add_mesh(grid.copy(), scalars='original_values', cmap='magma', clim=(-1, 1))
         plot.subplot(0, 1)
-        plot.add_mesh(grid.copy(), scalars='values', cmap='magma', clim=(-1, 1))
+        plot.add_mesh(grid.copy(), scalars='transformed_values', cmap='magma', clim=(-1, 1))
         plot.link_views()
         plot.show()
 
