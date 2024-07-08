@@ -90,11 +90,6 @@ class MeshWithUV(object):
         counts = np.zeros(len(self.vertices))
         for face in self.faces:
             for vertex in face:
-                # to check which points are the extreme points
-                # if self.uv_coords[vertex[1] - 1][0] < 0.03:
-                #     self.transformed_values_3d[vertex[0] - 1] += self.transformed_values_uv[vertex[1] - 1]
-                # else:
-                #     self.transformed_values_3d[vertex[0] - 1] += 0
                 self.transformed_values_3d[vertex[0] - 1] += self.transformed_values_uv[vertex[1] - 1]
                 counts[vertex[0] - 1] += 1
         self.transformed_values_3d /= counts
