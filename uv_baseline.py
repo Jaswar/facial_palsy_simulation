@@ -156,8 +156,19 @@ class MeshWithUV(object):
         plot.link_views()
         plot.show()
 
-    def visualize_laplace_grid(self):
-        plt.imshow(self.laplace_grid, interpolation='none', cmap='magma', clim=(-1, 1))
+    def visualize_laplace_grid(self, with_flipped=False):
+        subfigs = 1 if not with_flipped else 2
+        _, axs = plt.subplots(1, subfigs, figsize=(10 * subfigs, 10))
+        if type(axs) != np.ndarray:
+            axs = [axs]
+
+        axs[0].imshow(self.laplace_grid, interpolation='none', cmap='magma', clim=(-1, 1))
+        if with_flipped:
+            laplace_mid_point_uv = int(self.mid_point_uv * self.resolution)
+            flipped_laplace_grid = self.laplace_grid.copy()
+            upper_inx = min(2 * laplace_mid_point_uv, self.resolution)
+            flipped_laplace_grid[:, :laplace_mid_point_uv] = np.flip(self.laplace_grid[:, laplace_mid_point_uv:upper_inx], axis=1)
+            axs[1].imshow(flipped_laplace_grid, interpolation='none', cmap='magma', clim=(-1, 1))
         plt.show()
 
 
@@ -203,8 +214,8 @@ class MeshWithUV(object):
 if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
 
-    mesh = MeshWithUV('data/face_surface_with_uv2.obj', True, iterations=1000)
+    mesh = MeshWithUV('data/face_surface_with_uv2.obj', True, iterations=1500)
     mesh.baseline_transform()
-    mesh.visualize_laplace_grid()
+    mesh.visualize_laplace_grid(True)
     mesh.visualize_uv()
     mesh.visualize_mesh()
