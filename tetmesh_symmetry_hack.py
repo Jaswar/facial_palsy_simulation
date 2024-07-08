@@ -107,6 +107,7 @@ element_values_sym = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  
 element_values_sym[flipped_points] = element_values_sym[mapped_element]
 
 grid['values symmetric'] = element_values_sym
+print(grid)
 p = pv.Plotter(shape=(1,2))
 p.subplot(0, 0)
 p.add_mesh(grid.copy(), scalars='values', clim=(-1, 1), cmap='magma')

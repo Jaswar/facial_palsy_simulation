@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from collections import deque
 import numpy as np
 from scipy.spatial import KDTree
+import pyvista as pv
 
 
 # tried using libraries like pywavefront, but it seems like it doesn't support uv coordinates properly
@@ -42,17 +43,15 @@ class MeshWithUV(object):
         self.path = path
         self.parser = ObjParser(path)
         self.vertices, self.faces, self.normals, self.uv_coords = self.parser.parse()
+        print(len(self.vertices), len(self.uv_coords))
         self.mid_point = 0.4  # hard coded for now, had a better idea (__extract_face_only) but didnt work :(
-        self.values = np.array([u for u, _ in self.uv_coords]) - self.mid_point  # to be replaced with displacement values
+        self.values_uv = np.array([u for u, _ in self.uv_coords]) - self.mid_point  # to be replaced with displacement values
+        self.values_3d = None
         self.kdtree = KDTree(self.uv_coords)
 
-
-    def draw(self):
-        us = np.array([u for u, _ in self.uv_coords])
-        vs = np.array([v for _, v in self.uv_coords])
-        plt.scatter(us, vs, c=self.values, s=1, cmap='magma')
-        plt.axline((self.mid_point, 0), (self.mid_point, 1))
-        plt.show()
+    def baseline_transform(self):
+        self.reflect()
+        self.assign_values_3d()
 
     def reflect(self):
         reflected_indices = np.where(self.uv_coords[:, 0] < self.mid_point)
@@ -61,7 +60,36 @@ class MeshWithUV(object):
         # hence the formula is 0.4 - 0.3 + 0.4 = 0.5
         reflected[reflected_indices, 0] = self.mid_point - reflected[reflected_indices, 0] + self.mid_point
         _, indc = self.kdtree.query(reflected[reflected_indices])
-        self.values[reflected_indices] = self.values[indc]
+        self.values_uv[reflected_indices] = self.values_uv[indc]
+
+    def assign_values_3d(self):
+        self.values_3d = np.zeros(len(self.vertices))
+        counts = np.zeros(len(self.vertices))
+        for i, face in enumerate(self.faces):
+            for vertex in face:
+                self.values_3d[vertex[0] - 1] += self.values_uv[vertex[1] - 1]
+                counts[vertex[0] - 1] += 1
+        self.values_3d /= counts
+
+    def draw(self):
+        us = np.array([u for u, _ in self.uv_coords])
+        vs = np.array([v for _, v in self.uv_coords])
+        plt.scatter(us, vs, c=self.values_uv, s=1, cmap='magma')
+        plt.axline((self.mid_point, 0), (self.mid_point, 1))
+        plt.show()
+
+    def visualize_3d(self):
+        # the "3" is required by pyvista, it's the number of vertices per face
+        cells = np.array([[3, *[v[0] - 1 for v in face]] for face in self.faces])
+        # fill value of 5 to specify VTK_TRIANGLE
+        celltypes = np.full(cells.shape[0], fill_value=5, dtype=int)
+        grid = pv.UnstructuredGrid(cells, celltypes, self.vertices)
+        grid['values'] = self.values_3d
+        
+        plot = pv.Plotter()
+        plot.add_mesh(grid, scalars='values', cmap='magma')
+        plot.show()
+
 
     # def __extract_face_only(self):
     #     vertices, edges = self.__construct_graph()
@@ -106,5 +134,5 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
 
     mesh = MeshWithUV('data/face_surface_with_uv.obj')
-    mesh.reflect()
-    mesh.draw()
+    mesh.baseline_transform()
+    mesh.visualize_3d()
