@@ -5,7 +5,7 @@ from collections import deque
 import numpy as np
 from scipy.spatial import KDTree
 import pyvista as pv
-from scipy.ndimage.filters import laplace
+from scipy.ndimage import laplace
 
 
 # tried using libraries like pywavefront, but it seems like it doesn't support uv coordinates properly
@@ -119,26 +119,21 @@ class MeshWithUV(object):
         self.transformed_values_uv[reflected_indices, 0] *= -1         
 
     def __laplace_smooth(self):
-        minv = np.min(self.original_values_uv)
-        maxv = np.max(self.original_values_uv)
-        self.laplace_grid = np.full((self.resolution, self.resolution, self.dim), fill_value=minv)
+        self.laplace_grid = np.zeros((self.resolution, self.resolution, self.dim), dtype=np.float32)
         for i, uv_coord in enumerate(self.uv_coords):
             x = int(uv_coord[0] * self.resolution)
             y = int(uv_coord[1] * self.resolution)
             self.laplace_grid[y, x] = self.original_values_uv[i]
-        self.non_diffused_laplace_grid = self.laplace_grid.copy()
+        self.non_diffused_laplace_grid = self.laplace_grid.copy()  # for visualization purposes
 
-        non_fixed_points = [] 
         for d in range(self.dim):
-            non_fixed_points.append(np.where(self.laplace_grid[:, :, d] == minv))
-
-        self.laplace_grid = (self.laplace_grid - minv) / (maxv - minv) * 2 - 1  # normalize to [-1, 1]
-        for i in range(self.iterations):
-            print(f'\rRunning Laplace iteration {i + 1}/{self.iterations}', end='')
-            for d in range(self.dim):
-                self.laplace_grid[non_fixed_points[d]] = self.laplace_grid[non_fixed_points[d]] + self.dt * self.D * laplace(self.laplace_grid[:, :, d:d+1])[non_fixed_points[d]]
-        print()
-        self.laplace_grid = (self.laplace_grid + 1) / 2 * (maxv - minv) + minv  # denormalize
+            channel_grid = self.laplace_grid[:, :, d]
+            updated_indices = np.where(channel_grid == 0.)
+            for i in range(self.iterations):
+                print(f'\rRunning channel {d}, Laplace iteration {i + 1}/{self.iterations}', end='')
+                channel_grid[updated_indices] = channel_grid[updated_indices] + self.dt * self.D * laplace(channel_grid)[updated_indices]
+            print()
+            self.laplace_grid[:, :, d] = channel_grid
 
     def visualize_uv(self):
         us = np.array([u for u, _ in self.uv_coords])
@@ -215,52 +210,20 @@ class MeshWithUV(object):
             flipped_laplace_grid[:, :laplace_mid_point_uv] = np.flip(magnitudes[:, laplace_mid_point_uv:upper_inx], axis=1)
             axs[idx].imshow(flipped_laplace_grid, interpolation='none', cmap='magma')
         plt.show()
-
-
-    # def __extract_face_only(self):
-    #     vertices, edges = self.__construct_graph()
-    #     connected_components = self.__find_connected_components(vertices, edges)
-    #     print([len(c) for c in connected_components])
-        
-
-    # def __construct_graph(self):
-    #     vertices = [i + 1 for i in range(len(self.vertices))]  # 1-indexed
-    #     edges = {}
-    #     for face in self.faces:
-    #         for i in range(3):
-    #             start = face[i][0]
-    #             end = face[(i+1)%3][0]
-    #             if start not in edges:
-    #                 edges[start] = set()
-    #             edges[start].add(end)
-    #     return vertices, edges
-    
-    # def __find_connected_components(self, vertices, edges):
-    #     queue = deque()
-    #     unvisited_vertices = set(vertices)
-    #     components = []
-    #     while len(unvisited_vertices) > 0:
-    #         start = list(unvisited_vertices)[0]
-    #         queue.append(start)
-    #         current_component = []
-    #         while len(queue) > 0:
-    #             current = queue.pop()
-    #             if current not in unvisited_vertices:
-    #                 continue
-    #             current_component.append(current)
-    #             unvisited_vertices.remove(current)
-    #             for neighbour in edges[current]:
-    #                 if neighbour in unvisited_vertices:
-    #                     queue.append(neighbour)
-    #         components.append(current_component)
-    #     return components
     
 
 if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
 
-    mesh = MeshWithUV('data/face_surface_with_uv3.obj', 'data/ground_truths/deformed_surface_001.obj', flip_x=False, laplace=False, iterations=1000, resolution=250)
+    mesh = MeshWithUV('data/face_surface_with_uv3.obj', 
+                      'data/ground_truths/deformed_surface_001.obj', 
+                      flip_x=False, 
+                      laplace=True, 
+                      iterations=1500, 
+                      resolution=1000)
+    
     mesh.baseline_transform()
+
     mesh.visualize_laplace_grid(True, True)
     mesh.visualize_uv()
     mesh.visualize_mesh()
