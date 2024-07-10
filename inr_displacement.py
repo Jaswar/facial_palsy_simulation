@@ -5,14 +5,23 @@ import numpy as np
 from model import Model
 from dataset import MeshDataset
 
-def visualize_displacements(model, dataset):
-    predicted_displacements = model.predict(dataset.neutral_vertices)
+def visualize_displacements(model, dataset, pass_all=False):
+    if pass_all:
+        mask = th.zeros(dataset.neutral_vertices.shape[0], dtype=th.bool)
+        mask[dataset.relevant_indices] = True
+        flipped_vertices = dataset.neutral_vertices.clone()
+        flipped_vertices[~mask, 0] = dataset.midpoint - flipped_vertices[~mask, 0] + dataset.midpoint
+        predicted_displacements = model.predict(flipped_vertices)
+        predicted_displacements[~mask, 0] *= -1
+    else:
+        predicted_displacements = dataset.displacements.clone()
+        predicted_displacements[dataset.relevant_indices] = model.predict(dataset.neutral_vertices)[dataset.relevant_indices]
     all_predicted_vertices = dataset.neutral_vertices + predicted_displacements
     ground_truth_vertices = dataset.neutral_vertices + dataset.displacements
 
     # only replace the healthy part of the face
     predicted_vertices = ground_truth_vertices.clone()
-    predicted_vertices[dataset.relevant_indices] = all_predicted_vertices[dataset.relevant_indices]
+    predicted_vertices = all_predicted_vertices
 
     predicted_vertices = predicted_vertices.cpu().numpy()
     ground_truth_vertices = ground_truth_vertices.cpu().numpy()
@@ -30,20 +39,21 @@ def visualize_displacements(model, dataset):
     plot.subplot(0, 0)
     plot.add_mesh(neutral_grid.copy(), color='yellow')
     plot.subplot(0, 1)
-    plot.add_mesh(predicted_grid.copy(), color='yellow')
-    plot.subplot(0, 2)
     plot.add_mesh(ground_truth_grid.copy(), color='yellow')
+    plot.subplot(0, 2)
+    plot.add_mesh(predicted_grid.copy(), color='yellow')
     plot.link_views()
     plot.show()
 
 
 def main():
     neutral_path = 'data/face_surface_with_uv3.obj'
-    deformed_path = 'data/ground_truths/deformed_surface_001.obj'
-    checkpoint_path = 'checkpoints/best_model.pth'
+    deformed_path = 'data/ground_truths/deformed_surface_023.obj'
+    checkpoint_path = 'checkpoints/best_model_exp23.pth'
     epochs = 1000
     batch_size = 32
-    train = True
+    train = False
+    vis_interval = 100
 
     if th.cuda.is_available():
         device = 'cuda'
@@ -67,11 +77,11 @@ def main():
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
             print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.6f}')
-            if epoch % 100 == 0:
+            if epoch % vis_interval == 0:
                 visualize_displacements(model, dataset)
 
     model.load_state_dict(th.load(checkpoint_path))
-    visualize_displacements(model, dataset)
+    visualize_displacements(model, dataset, pass_all=True)
 
 if __name__ == '__main__':
     main()

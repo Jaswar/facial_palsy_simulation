@@ -187,7 +187,7 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
 
     mesh = MeshWithUV('data/face_surface_with_uv3.obj', 
-                      'data/ground_truths/deformed_surface_001.obj', 
+                      'data/ground_truths/deformed_surface_023.obj', 
                       flip_x=False, 
                       laplace=True, 
                       iterations=1500, 
