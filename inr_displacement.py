@@ -62,15 +62,20 @@ class Sin(th.nn.Module):
 
 class Model(th.nn.Module):
     
-    def __init__(self, input_size=3, output_size=3, num_hidden_layers=3, hidden_size=32):
+    def __init__(self, input_size=3, output_size=3, num_hidden_layers=3, hidden_size=32, with_fourier=True, fourier_features=10):
         super(Model, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
+        self.with_fourier = with_fourier
+        self.fourier_features = fourier_features
 
         self.layers = th.nn.ModuleList()
-        self.layers.append(th.nn.Linear(input_size, hidden_size))
+        if not with_fourier:
+            self.layers.append(th.nn.Linear(input_size, hidden_size))
+        else:
+            self.layers.append(th.nn.Linear(input_size * 2 * fourier_features, hidden_size))
         self.layers.append(Sin())
         for _ in range(self.num_hidden_layers):
             self.layers.append(th.nn.Linear(hidden_size, hidden_size))
@@ -78,7 +83,18 @@ class Model(th.nn.Module):
         self.layers.append(th.nn.Linear(hidden_size, output_size))
         self.layers.append(th.nn.Tanh())
     
+    def fourier_encode(self, x):
+        # based on https://github.com/jmclong/random-fourier-features-pytorch/blob/main/rff/functional.py
+        features = th.arange(0, self.fourier_features, device=x.device)
+        features = np.pi * 2 ** features
+        xff = features * x.unsqueeze(-1) 
+        xff = th.cat([th.sin(xff), th.cos(xff)], dim=-1)
+        xff = xff.view(xff.size(0), -1)
+        return xff
+
     def forward(self, x):
+        if self.with_fourier:
+            x = self.fourier_encode(x)
         for layer in self.layers:
             x = layer(x)
         return x
@@ -141,8 +157,10 @@ def visualize_displacements(model, dataset):
 def main():
     neutral_path = 'data/face_surface_with_uv3.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
+    checkpoint_path = 'checkpoints/best_model.pth'
     epochs = 1000
     batch_size = 32
+    train = False
 
     if th.cuda.is_available():
         device = 'cuda'
@@ -155,15 +173,21 @@ def main():
     loader = th.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     model = Model(input_size=dataset.dimensionality(), output_size=dataset.dimensionality(), num_hidden_layers=8, hidden_size=256)
     model.to(device)
+    
+    if train:
+        criterion = th.nn.L1Loss()
+        optimizer = th.optim.Adam(model.parameters(), lr=1e-4)
+        min_loss = float('inf')
+        for epoch in range(1, epochs + 1):
+            train_loss = model.train_epoch(loader, optimizer, criterion)
+            if train_loss < min_loss:
+                min_loss = train_loss
+                th.save(model.state_dict(), checkpoint_path)
+            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.6f}')
+            if epoch % 100 == 0:
+                visualize_displacements(model, dataset)
 
-    criterion = th.nn.L1Loss()
-    optimizer = th.optim.Adam(model.parameters(), lr=1e-4)
-    for epoch in range(1, epochs + 1):
-        train_loss = model.train_epoch(loader, optimizer, criterion)
-        print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.6f}')
-        if epoch % 100 == 0:
-            visualize_displacements(model, dataset)
-
+    model.load_state_dict(th.load(checkpoint_path))
     visualize_displacements(model, dataset)
 
 if __name__ == '__main__':
