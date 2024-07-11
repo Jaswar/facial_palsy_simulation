@@ -90,8 +90,17 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         self.__normalize()
 
-        self.displacements = self.deformed_surface.points - self.neutral_surface.points
+        self.displacements = self.deformed_nodes - self.nodes
+        
+        self.midpoint = np.mean(self.nodes[:, 0])
+        self.relevant_indices = np.where(self.nodes[:, 0] < self.midpoint)[0]
+        self.relevant_nodes = self.nodes[self.relevant_indices]
+        self.relevant_mask = self.mask[self.relevant_indices]
+        self.relevant_displacements = self.displacements[self.relevant_indices]
 
+        self.relevant_nodes = th.tensor(self.relevant_nodes).to(device).float()
+        self.relevant_mask = th.tensor(self.relevant_mask).to(device).float()
+        self.relevant_displacements = th.tensor(self.relevant_displacements).to(device).float()
 
     def visualize(self):
         skull_nodes = self.nodes[self.skull_mask]
@@ -180,7 +189,13 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.surface_mask] = 3
 
     def __len__(self):
-        return len(self.nodes)
+        return self.relevant_nodes.shape[0]
+    
+    def __getitem__(self, idx):
+        if th.is_tensor(idx):
+            idx = idx.tolist()
+
+        return self.relevant_nodes[idx], self.relevant_mask[idx], self.relevant_displacements[idx]
 
 
 if __name__ == '__main__':

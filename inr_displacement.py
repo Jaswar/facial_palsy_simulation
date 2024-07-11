@@ -3,35 +3,33 @@ import pyvista as pv
 import torch as th
 import numpy as np
 from model import Model
-from dataset import MeshDataset
+from dataset import TetmeshDataset
 
 def visualize_displacements(model, dataset, pass_all=False):
     if pass_all:
-        mask = th.zeros(dataset.neutral_vertices.shape[0], dtype=th.bool)
+        mask = th.zeros(dataset.nodes.shape[0], dtype=th.bool)
         mask[dataset.relevant_indices] = True
-        flipped_vertices = dataset.neutral_vertices.clone()
+        flipped_vertices = dataset.nodes.copy()
         flipped_vertices[~mask, 0] = dataset.midpoint - flipped_vertices[~mask, 0] + dataset.midpoint
-        predicted_displacements = model.predict(flipped_vertices)
+        predicted_displacements = model.predict(th.tensor(flipped_vertices).to(dataset.device).float()).cpu().numpy()
         predicted_displacements[~mask, 0] *= -1
     else:
-        predicted_displacements = dataset.displacements.clone()
-        predicted_displacements[dataset.relevant_indices] = model.predict(dataset.neutral_vertices)[dataset.relevant_indices]
-    all_predicted_vertices = dataset.neutral_vertices + predicted_displacements
-    ground_truth_vertices = dataset.neutral_vertices + dataset.displacements
+        predicted_displacements = dataset.displacements.copy()
+        predicted_displacements[dataset.relevant_indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[dataset.relevant_indices]
+    all_predicted_vertices = dataset.nodes + predicted_displacements
+    ground_truth_vertices = dataset.nodes + dataset.displacements
 
     # only replace the healthy part of the face
-    predicted_vertices = ground_truth_vertices.clone()
+    predicted_vertices = ground_truth_vertices.copy()
     predicted_vertices = all_predicted_vertices
 
-    predicted_vertices = predicted_vertices.cpu().numpy()
-    ground_truth_vertices = ground_truth_vertices.cpu().numpy()
+    predicted_vertices = predicted_vertices
+    ground_truth_vertices = ground_truth_vertices
 
-    # the "3" is required by pyvista, it's the number of vertices per face
-    cells = np.array([[3, *[v[0] - 1 for v in face]] for face in dataset.faces])
-    # fill value of 5 to specify VTK_TRIANGLE
-    celltypes = np.full(cells.shape[0], fill_value=5, dtype=int)
+    cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
+    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
 
-    neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.neutral_vertices.cpu().numpy())
+    neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes)
     predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
     ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, ground_truth_vertices)
     
@@ -47,12 +45,15 @@ def visualize_displacements(model, dataset, pass_all=False):
 
 
 def main():
-    neutral_path = 'data/face_surface_with_uv3.obj'
-    deformed_path = 'data/ground_truths/deformed_surface_023.obj'
-    checkpoint_path = 'checkpoints/best_model_exp23.pth'
+    tetmesh_path = 'data/tetmesh'
+    jaw_path = 'data/jaw.obj'
+    skull_path = 'data/skull.obj'
+    neutral_path = 'data/tetmesh_face_surface.obj'
+    deformed_path = 'data/ground_truths/deformed_surface_001.obj'
+    checkpoint_path = 'checkpoints/best_model.pth'
     epochs = 1000
     batch_size = 32
-    train = False
+    train = True
     vis_interval = 100
 
     if th.cuda.is_available():
@@ -60,11 +61,10 @@ def main():
     else:
         device = 'cpu'
     print(f'Using device: {device}')
-    # device = 'cpu'
 
-    dataset = MeshDataset(neutral_path, deformed_path, device=device)
+    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, device=device)
     loader = th.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    model = Model(input_size=dataset.dimensionality(), output_size=dataset.dimensionality(), num_hidden_layers=8, hidden_size=256)
+    model = Model(num_hidden_layers=8, hidden_size=256)
     model.to(device)
     
     if train:

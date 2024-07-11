@@ -55,7 +55,7 @@ class Model(th.nn.Module):
         self.train()
         total_loss = 0.
         total_samples = 0
-        for neutral, displacement in dataloader:
+        for neutral, mask, displacement in dataloader:
             prediction = self(neutral)
             loss = criterion(prediction, displacement)
 
