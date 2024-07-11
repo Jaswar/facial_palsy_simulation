@@ -4,6 +4,7 @@ from obj_parser import ObjParser
 from tetmesh import Tetmesh
 import pyvista as pv
 import igl
+from scipy.spatial import KDTree
 
 
 class MeshDataset(th.utils.data.Dataset):
@@ -65,20 +66,16 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.device = device
         
         # the different parts of the face
-        self.skull_nodes = None
         self.skull_mask = None
-        self.jaw_nodes = None
         self.jaw_mask = None
-        self.surface_mask = None  # no surface nodes as we will use self.neutral_surface and self.deformed_surface
-        self.tissue_nodes = None
+        self.surface_mask = None 
         self.tissue_mask = None
+        # combined mask used during training to specify the type of each node
+        self.mask = None
 
         # for normalization (denormalization if needed)
         self.minv = None
         self.maxv = None
-
-        # combined mask used during training to specify the type of each node
-        self.mask = None
         
         self.__read()
 
@@ -97,16 +94,30 @@ class TetmeshDataset(th.utils.data.Dataset):
 
 
     def visualize(self):
+        skull_nodes = self.nodes[self.skull_mask]
+        jaw_nodes = self.nodes[self.jaw_mask]
+        surface_nodes = self.nodes[self.surface_mask]
+        tissue_nodes = self.nodes[self.tissue_mask]
+
+        def_skull_nodes = self.deformed_nodes[self.skull_mask]
+        def_jaw_nodes = self.deformed_nodes[self.jaw_mask]
+        def_surface_nodes = self.deformed_nodes[self.surface_mask]
+        def_tissue_nodes = self.deformed_nodes[self.tissue_mask]
+
         cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
         celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
         grid = pv.UnstructuredGrid(cells, celltypes, self.nodes)
+        def_grid = pv.UnstructuredGrid(cells, celltypes, self.deformed_nodes)
 
-        plot = pv.Plotter()
+        plot = pv.Plotter(shape=(1, 2))
+        plot.subplot(0, 0)
         plot.add_mesh(grid, color='lightgray')
-        plot.add_points(self.skull_nodes, color='midnightblue', point_size=7.)
-        plot.add_points(self.jaw_nodes, color='red', point_size=7.)
-        plot.add_points(self.neutral_surface.points, color='yellow', point_size=7.)
-        plot.add_points(self.tissue_nodes, color='green', point_size=7.)
+        plot.add_points(skull_nodes, color='midnightblue', point_size=7.)
+        plot.add_points(jaw_nodes, color='red', point_size=7.)
+        plot.add_points(surface_nodes, color='yellow', point_size=7.)
+        plot.add_points(tissue_nodes, color='green', point_size=7.)
+        plot.subplot(0, 1)
+        plot.add_mesh(def_grid, color='lightgray')
         plot.show()
 
     def __read(self):
@@ -133,11 +144,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.maxv = np.max(self.nodes)
 
         self.nodes = (self.nodes - self.minv) / (self.maxv - self.minv)
-        self.skull_nodes = (self.skull_nodes - self.minv) / (self.maxv - self.minv)
-        self.jaw_nodes = (self.jaw_nodes - self.minv) / (self.maxv - self.minv)
-        self.neutral_surface.points = (self.neutral_surface.points - self.minv) / (self.maxv - self.minv)
-        self.deformed_surface.points = (self.deformed_surface.points - self.minv) / (self.maxv - self.minv)
-        self.tissue_nodes = (self.tissue_nodes - self.minv) / (self.maxv - self.minv)
+        self.deformed_nodes = (self.deformed_nodes - self.minv) / (self.maxv - self.minv)
 
     def __detect_skull(self):
         self.skull_mask = self.__detect(self.skull, self.tol)
@@ -148,22 +155,23 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.jaw_nodes = self.nodes[self.jaw_mask]
 
     def __detect_surface(self):
-        self.surface_mask, I = self.__detect(self.neutral_surface, self.stol, return_indices=True)
+        kdtree = KDTree(self.nodes)
+        _, indices = kdtree.query(self.neutral_surface.points)
+        self.surface_mask = np.zeros(self.nodes.shape[0], dtype=bool)
+        self.surface_mask[indices] = True
+        
         self.deformed_nodes = self.nodes.copy()
-        self.deformed_nodes[I] = self.deformed_surface.points
+        self.deformed_nodes[indices] = self.deformed_surface.points
     
     def __detect_tissue(self):
         self.tissue_mask = np.logical_and(np.logical_not(self.skull_mask), np.logical_not(self.jaw_mask))
         self.tissue_mask = np.logical_and(self.tissue_mask, np.logical_not(self.surface_mask))
         self.tissue_nodes = self.nodes[self.tissue_mask]
 
-    def __detect(self, mesh, tol, return_indices=False):
-        ds, I, _ = igl.point_mesh_squared_distance(self.nodes, mesh.points, mesh.regular_faces)
+    def __detect(self, mesh, tol):
+        ds, _, _ = igl.point_mesh_squared_distance(self.nodes, mesh.points, mesh.regular_faces)
         boundary_mask = ds < tol
-        if return_indices:
-            return boundary_mask, I
-        else:
-            return boundary_mask
+        return boundary_mask
     
     def __combine_masks(self):
         self.mask = np.zeros(self.nodes.shape[0])
