@@ -189,11 +189,13 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.surface_mask] = 3
 
     def __len__(self):
-        return self.relevant_nodes.shape[0]
+        return 10000
     
     def __getitem__(self, idx):
         if th.is_tensor(idx):
             idx = idx.tolist()
+        
+        idx = np.random.randint(0, len(self.relevant_nodes))
 
         return self.relevant_nodes[idx], self.relevant_mask[idx], self.relevant_displacements[idx]
 
