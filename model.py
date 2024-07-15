@@ -1,5 +1,6 @@
 import torch as th
 import numpy as np
+from tqdm import tqdm
 
 
 # pytorch implementation of procrustes
@@ -63,6 +64,22 @@ def procrustes_loss(S1, S2):
     return error
 
 
+def deformation_loss(jacobian):
+    # perform singular value decomposition
+    U, _, V = th.svd(jacobian)
+
+    # Construct Z that fixes the orientation of R to get det(R)=1.
+    Z = th.eye(U.shape[1], device=jacobian.device).unsqueeze(0)
+    Z = Z.repeat(U.shape[0],1,1)
+    Z[:, -1, -1] *= th.sign(th.det(U.bmm(V.permute(0,2,1))))
+
+    # construct R = VZU^T
+    R = V.bmm(Z.bmm(U.permute(0,2,1)))
+
+    # compute the Frobenius norm of the difference between the Jacobian and the R matrix
+    return th.norm(jacobian - R)
+
+
 # module implementation of a sine activation (doesn't exist in PyTorch)
 class Sin(th.nn.Module):
 
@@ -99,7 +116,6 @@ class Model(th.nn.Module):
             self.layers.append(th.nn.Linear(hidden_size, hidden_size))
             self.layers.append(Sin())
         self.layers.append(th.nn.Linear(hidden_size, output_size))
-        # self.layers.append(th.nn.Linear())
     
     def fourier_encode(self, x):
         # based on https://github.com/jmclong/random-fourier-features-pytorch/blob/main/rff/functional.py
@@ -121,25 +137,34 @@ class Model(th.nn.Module):
         self.train()
         total_loss = 0.
         total_samples = 0
-        for neutral, mask, target in dataloader:
-            prediction = self(neutral)
-            loss = self.compute_loss(prediction, target, mask)
+        for inputs, mask, target in tqdm(dataloader):
+            prediction = self(inputs)
+            jacobian = self.__construct_jacobian(inputs)
+            loss = self.compute_loss(prediction, target, mask, jacobian)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            total_samples += len(neutral)
-            total_loss += loss.item() * len(neutral)
+            total_samples += len(inputs)
+            total_loss += loss.item() * len(inputs)
         return total_loss / total_samples
-    
+
+    def __construct_jacobian(self, x):
+        jacobian = th.zeros((x.shape[0], self.output_size, self.input_size), device=x.device)
+        for i in range(x.shape[0]):
+            j = th.autograd.functional.jacobian(self, x[i:i+1, :], create_graph=True, vectorize=True)
+            j = j.view(self.output_size, self.input_size)
+            jacobian[i] = j
+        return jacobian
+
     def predict(self, data):
         self.eval()
         with th.no_grad():
             result = self(data)
         return result
     
-    def compute_loss(self, prediction, target, mask):
+    def compute_loss(self, prediction, target, mask, jacobian):
         where_tissue = mask == 0
         where_skull = mask == 1
         where_jaw = mask == 2
@@ -160,6 +185,10 @@ class Model(th.nn.Module):
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 
-        loss = surface_loss + skull_loss + jaw_loss
+        tissue_loss = th.tensor(0., device=prediction.device)
+        if where_tissue.sum() > 0:
+            tissue_loss = deformation_loss(jacobian[where_tissue])
+
+        loss = surface_loss + skull_loss + jaw_loss + tissue_loss
         return loss
 

@@ -48,7 +48,7 @@ def main():
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model_1.pth'
     epochs = 10000
-    batch_size = 1000
+    batch_size = 32
     train = True
     vis_interval = 500
 
