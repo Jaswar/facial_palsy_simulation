@@ -45,7 +45,7 @@ def main():
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
-    checkpoint_path = 'checkpoints/best_model.pth'
+    checkpoint_path = 'checkpoints/best_model_1.pth'
     epochs = 1000
     batch_size = 32
     train = True
@@ -63,17 +63,18 @@ def main():
     model.to(device)
     
     if train:
-        criterion = th.nn.L1Loss()
         optimizer = th.optim.Adam(model.parameters(), lr=1e-4)
+        lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         min_loss = float('inf')
         for epoch in range(1, epochs + 1):
-            train_loss = model.train_epoch(loader, optimizer, criterion)
+            train_loss = model.train_epoch(loader, optimizer)
             if train_loss < min_loss:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
-            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f}')
+            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
             if epoch % vis_interval == 0:
                 visualize_displacements(model, dataset)
+            lr_scheduler.step()
 
     model.load_state_dict(th.load(checkpoint_path))
     visualize_displacements(model, dataset, pass_all=True)

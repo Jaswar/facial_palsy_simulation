@@ -112,7 +112,7 @@ class Model(th.nn.Module):
             x = layer(x)
         return x
     
-    def train_epoch(self, dataloader, optimizer, criterion): 
+    def train_epoch(self, dataloader, optimizer): 
         self.train()
         total_loss = 0.
         total_samples = 0
@@ -135,14 +135,19 @@ class Model(th.nn.Module):
         return result
     
     def compute_loss(self, prediction, target, mask):
-        loss = 0.
         where_tissue = mask == 0
         where_skull = mask == 1
         where_jaw = mask == 2
         where_surface = mask == 3
 
-        loss += th.nn.functional.l1_loss(prediction, target)
-        # loss[where_skull] = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
+        surface_loss = th.tensor(0., device=prediction.device)
+        if where_surface.sum() > 0:
+            surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
+        
+        skull_loss = th.tensor(0., device=prediction.device)
+        if where_skull.sum() > 0:
+            skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
+
         # loss[where_tissue] = th.nn.functional.l1_loss(prediction[where_tissue], target[where_tissue])
         # loss[where_jaw] = procrustes_loss(prediction[where_jaw], target[where_jaw])
 
@@ -152,5 +157,6 @@ class Model(th.nn.Module):
 
         # print(loss[where_surface].mean(), loss[where_skull].mean(), loss[where_jaw].mean())
 
+        loss = surface_loss + skull_loss
         return loss
 
