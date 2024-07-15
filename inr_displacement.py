@@ -46,10 +46,10 @@ def main():
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model_1.pth'
-    epochs = 1000
-    batch_size = 32
+    epochs = 10000
+    batch_size = 1000
     train = True
-    vis_interval = 100
+    vis_interval = 500
 
     if th.cuda.is_available():
         device = 'cuda'
@@ -71,10 +71,11 @@ def main():
             if train_loss < min_loss:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
+            lr_scheduler.step()
+
             print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
             if epoch % vis_interval == 0:
                 visualize_displacements(model, dataset)
-            lr_scheduler.step()
 
     model.load_state_dict(th.load(checkpoint_path))
     visualize_displacements(model, dataset, pass_all=True)
