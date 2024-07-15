@@ -140,7 +140,7 @@ class Model(th.nn.Module):
         self.train()
         total_loss = 0.
         total_samples = 0
-        for inputs, mask, target in tqdm(dataloader):
+        for inputs, mask, target in dataloader:
             prediction = self(inputs)
             jacobian = self.__construct_jacobian(inputs)
             loss = self.compute_loss(prediction, target, mask, jacobian)

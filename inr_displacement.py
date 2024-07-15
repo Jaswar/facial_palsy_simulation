@@ -19,6 +19,7 @@ def visualize_displacements(model, dataset, pass_all=False):
         indices[dataset.relevant_indices] = True
         part_indices = np.logical_or(dataset.mask == 1, dataset.mask == 3)
         part_indices = np.logical_or(part_indices, dataset.mask == 2)
+        part_indices = np.logical_or(part_indices, dataset.mask == 0)
         indices = np.logical_and(indices, part_indices)
         predicted_vertices[indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[indices]
 
@@ -48,9 +49,9 @@ def main():
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model_1.pth'
     epochs = 10000
-    batch_size = 32
+    batch_size = 1000
     train = True
-    vis_interval = 1
+    vis_interval = 500
 
     if th.cuda.is_available():
         device = 'cuda'
