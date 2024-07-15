@@ -101,7 +101,7 @@ class Model(th.nn.Module):
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
 
-        self.w_tissue = 1.
+        self.w_tissue = 0.01
         self.w_jaw = 1.
         self.w_skull = 0.2
         self.w_surface = 0.2
@@ -127,6 +127,9 @@ class Model(th.nn.Module):
         return xff
 
     def forward(self, x):
+        # the jacobian computation seems to pass each sample separately so we need to unsqueeze
+        if x.dim() == 1:  
+            x = x.unsqueeze(0)
         if self.with_fourier:
             x = self.fourier_encode(x)
         for layer in self.layers:
@@ -150,12 +153,9 @@ class Model(th.nn.Module):
             total_loss += loss.item() * len(inputs)
         return total_loss / total_samples
 
-    def __construct_jacobian(self, x):
-        jacobian = th.zeros((x.shape[0], self.output_size, self.input_size), device=x.device)
-        for i in range(x.shape[0]):
-            j = th.autograd.functional.jacobian(self, x[i:i+1, :], create_graph=True, vectorize=True)
-            j = j.view(self.output_size, self.input_size)
-            jacobian[i] = j
+    def __construct_jacobian(self, inputs):
+        jacobian = th.vmap(th.func.jacrev(self))(inputs)
+        jacobian = jacobian.view(inputs.shape[0], self.output_size, self.input_size)
         return jacobian
 
     def predict(self, data):
@@ -181,13 +181,14 @@ class Model(th.nn.Module):
         skull_loss *= self.w_skull
 
         jaw_loss = th.tensor(0., device=prediction.device)
-        if where_jaw.sum() > 0:
+        if where_jaw.sum() > 1:
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 
         tissue_loss = th.tensor(0., device=prediction.device)
         if where_tissue.sum() > 0:
             tissue_loss = deformation_loss(jacobian[where_tissue])
+        tissue_loss = tissue_loss * self.w_tissue
 
         loss = surface_loss + skull_loss + jaw_loss + tissue_loss
         return loss

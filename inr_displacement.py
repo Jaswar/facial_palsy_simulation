@@ -50,7 +50,7 @@ def main():
     epochs = 10000
     batch_size = 32
     train = True
-    vis_interval = 500
+    vis_interval = 1
 
     if th.cuda.is_available():
         device = 'cuda'
