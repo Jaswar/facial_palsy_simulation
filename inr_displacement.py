@@ -18,6 +18,7 @@ def visualize_displacements(model, dataset, pass_all=False):
         indices = np.zeros(dataset.nodes.shape[0], dtype=bool)
         indices[dataset.relevant_indices] = True
         part_indices = np.logical_or(dataset.mask == 1, dataset.mask == 3)
+        part_indices = np.logical_or(part_indices, dataset.mask == 2)
         indices = np.logical_and(indices, part_indices)
         predicted_vertices[indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[indices]
 

@@ -84,6 +84,11 @@ class Model(th.nn.Module):
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
 
+        self.w_tissue = 1.
+        self.w_jaw = 1.
+        self.w_skull = 0.2
+        self.w_surface = 0.2
+
         self.layers = th.nn.ModuleList()
         if not with_fourier:
             self.layers.append(th.nn.Linear(input_size, hidden_size))
@@ -143,20 +148,18 @@ class Model(th.nn.Module):
         surface_loss = th.tensor(0., device=prediction.device)
         if where_surface.sum() > 0:
             surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
+        surface_loss *= self.w_surface
         
         skull_loss = th.tensor(0., device=prediction.device)
         if where_skull.sum() > 0:
             skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
+        skull_loss *= self.w_skull
 
-        # loss[where_tissue] = th.nn.functional.l1_loss(prediction[where_tissue], target[where_tissue])
-        # loss[where_jaw] = procrustes_loss(prediction[where_jaw], target[where_jaw])
+        jaw_loss = th.tensor(0., device=prediction.device)
+        if where_jaw.sum() > 0:
+            jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
+        jaw_loss *= self.w_jaw
 
-        # loss[where_surface] /= where_surface.sum()
-        # loss[where_skull] /= where_skull.sum()
-        # loss[where_jaw] /= where_jaw.sum()
-
-        # print(loss[where_surface].mean(), loss[where_skull].mean(), loss[where_jaw].mean())
-
-        loss = surface_loss + skull_loss
+        loss = surface_loss + skull_loss + jaw_loss
         return loss
 
