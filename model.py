@@ -77,7 +77,7 @@ def deformation_loss(jacobian):
     R = V.bmm(Z.bmm(U.permute(0,2,1)))
 
     # compute the Frobenius norm of the difference between the Jacobian and the R matrix
-    return th.norm(jacobian - R)
+    return th.linalg.matrix_norm(jacobian - R).mean()
 
 
 # module implementation of a sine activation (doesn't exist in PyTorch)
@@ -101,7 +101,7 @@ class Model(th.nn.Module):
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
 
-        self.w_tissue = 0.01
+        self.w_tissue = 0.04
         self.w_jaw = 1.
         self.w_skull = 0.2
         self.w_surface = 0.2
