@@ -11,27 +11,22 @@ def visualize_displacements(model, dataset, pass_all=False):
         mask[dataset.relevant_indices] = True
         flipped_vertices = dataset.nodes.copy()
         flipped_vertices[~mask, 0] = dataset.midpoint - flipped_vertices[~mask, 0] + dataset.midpoint
-        predicted_displacements = model.predict(th.tensor(flipped_vertices).to(dataset.device).float()).cpu().numpy()
-        predicted_displacements[~mask, 0] *= -1
+        predicted_vertices = model.predict(th.tensor(flipped_vertices).to(dataset.device).float()).cpu().numpy()
+        predicted_vertices[~mask, 0] = dataset.midpoint - predicted_vertices[~mask, 0] + dataset.midpoint
     else:
-        predicted_displacements = dataset.displacements.copy()
-        predicted_displacements[dataset.relevant_indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[dataset.relevant_indices]
-    all_predicted_vertices = dataset.nodes + predicted_displacements
-    ground_truth_vertices = dataset.nodes + dataset.displacements
-
-    # only replace the healthy part of the face
-    predicted_vertices = ground_truth_vertices.copy()
-    predicted_vertices = all_predicted_vertices
-
-    predicted_vertices = predicted_vertices
-    ground_truth_vertices = ground_truth_vertices
+        predicted_vertices = dataset.deformed_nodes.copy()
+        indices = np.zeros(dataset.nodes.shape[0], dtype=bool)
+        indices[dataset.relevant_indices] = True
+        part_indices = np.logical_or(dataset.mask == 1, dataset.mask == 3)
+        indices = np.logical_and(indices, part_indices)
+        predicted_vertices[indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[indices]
 
     cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
     celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
 
     neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes)
     predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
-    ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, ground_truth_vertices)
+    ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, dataset.deformed_nodes)
     
     plot = pv.Plotter(shape=(1, 3))
     plot.subplot(0, 0)
@@ -76,7 +71,7 @@ def main():
             if train_loss < min_loss:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
-            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.6f}')
+            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f}')
             if epoch % vis_interval == 0:
                 visualize_displacements(model, dataset)
 
