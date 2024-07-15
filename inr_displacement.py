@@ -47,10 +47,10 @@ def main():
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
-    checkpoint_path = 'checkpoints/best_model_1.pth'
+    checkpoint_path = 'checkpoints/best_model.pth'
     epochs = 10000
     batch_size = 1000
-    train = True
+    train = False
     vis_interval = 500
 
     if th.cuda.is_available():

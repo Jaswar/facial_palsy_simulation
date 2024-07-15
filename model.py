@@ -1,6 +1,7 @@
 import torch as th
 import numpy as np
 from tqdm import tqdm
+import copy
 
 
 # pytorch implementation of procrustes
@@ -92,7 +93,8 @@ class Sin(th.nn.Module):
 
 class Model(th.nn.Module):
     
-    def __init__(self, input_size=3, output_size=3, num_hidden_layers=3, hidden_size=32, with_fourier=True, fourier_features=10):
+    def __init__(self, input_size=3, output_size=3, num_hidden_layers=3, hidden_size=32, with_fourier=True, fourier_features=10, 
+                 w_tissue=0.02, w_jaw=1., w_skull=2., w_surface=10.):
         super(Model, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
@@ -101,10 +103,10 @@ class Model(th.nn.Module):
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
 
-        self.w_tissue = 0.04
-        self.w_jaw = 1.
-        self.w_skull = 0.2
-        self.w_surface = 0.2
+        self.w_tissue = w_tissue
+        self.w_jaw = w_jaw
+        self.w_skull = w_skull
+        self.w_surface = w_surface
 
         self.layers = th.nn.ModuleList()
         if not with_fourier:
@@ -181,14 +183,11 @@ class Model(th.nn.Module):
         skull_loss *= self.w_skull
 
         jaw_loss = th.tensor(0., device=prediction.device)
-        if where_jaw.sum() > 1:
+        if where_jaw.sum() > 1:  # need at least two points, othwerwise we get nan
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 
-        tissue_loss = th.tensor(0., device=prediction.device)
-        if where_tissue.sum() > 0:
-            tissue_loss = deformation_loss(jacobian[where_tissue])
-        tissue_loss = tissue_loss * self.w_tissue
+        tissue_loss = deformation_loss(jacobian) * self.w_tissue
 
         loss = surface_loss + skull_loss + jaw_loss + tissue_loss
         return loss
