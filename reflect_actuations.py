@@ -13,7 +13,7 @@ def get_actuations(deformation_gradient):
 
 def visualize_actuations(nodes, elements, actuations):
     _, s, _ = th.svd(actuations)
-    actuations = th.log(th.sum(s, dim=1))
+    actuations = th.sum(s, dim=1)
 
     cells = np.hstack([np.full((elements.shape[0], 1), 4, dtype=int), elements])
     celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
@@ -22,14 +22,14 @@ def visualize_actuations(nodes, elements, actuations):
     neutral_grid['actuations'] = actuations.cpu().numpy()
 
     plot = pv.Plotter()
-    plot.add_mesh(neutral_grid, scalars='actuations', cmap='viridis')
+    plot.add_mesh(neutral_grid, scalars='actuations', clim=(2, 4), cmap='RdBu')
     plot.show()
 
 
 def main():
     tetmesh_path = 'data/tetmesh'
-    model_path = 'checkpoints/best_model_16_07_init.pth'
-    actuations_path = 'data/actuations.npy'
+    model_path = 'checkpoints/best_model_017.pth'
+    actuations_path = 'data/actuations_017.npy'
 
     nodes, elements, _ = Tetmesh.read_tetgen_file(tetmesh_path)
     minv = np.min(nodes)
@@ -46,6 +46,9 @@ def main():
     with th.no_grad():
         flipped_vertices = nodes.copy()
         flipped_vertices[~relevant_indices, 0] = midpoint - flipped_vertices[~relevant_indices, 0] + midpoint
+        nodes = th.tensor(flipped_vertices).float()
+        nodes = model.predict(nodes).numpy()
+        nodes[~relevant_indices, 0] = midpoint - nodes[~relevant_indices, 0] + midpoint
         deformation_gradient = model.construct_jacobian(th.tensor(flipped_vertices).float())
     
     actuations = get_actuations(deformation_gradient)
