@@ -98,7 +98,7 @@ class Model(th.nn.Module):
     def __init__(self, input_size=3, output_size=3, 
                  num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
                  with_fourier=True, fourier_features=10, 
-                 w_tissue=0.02, w_jaw=1., w_skull=2., w_surface=10.):
+                 w_tissue=0.08, w_jaw=1., w_skull=2., w_surface=10.):
         super(Model, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
@@ -127,6 +127,11 @@ class Model(th.nn.Module):
             self.layers.append(th.nn.Sigmoid())
             self.scale = th.nn.Parameter(th.tensor(1., dtype=th.float32), requires_grad=True)
             self.translation = th.nn.Parameter(th.tensor(0., dtype=th.float32), requires_grad=True)
+
+        # initialization from the SIREN paper
+        for layer in self.layers:
+            if hasattr(layer, 'weight'):
+                th.nn.init.uniform_(layer.weight, a=-np.sqrt(6 / layer.in_features), b=np.sqrt(6 / layer.in_features))
     
     def fourier_encode(self, x):
         # based on https://github.com/jmclong/random-fourier-features-pytorch/blob/main/rff/functional.py
