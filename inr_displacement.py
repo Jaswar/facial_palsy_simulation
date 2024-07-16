@@ -4,6 +4,7 @@ import torch as th
 import numpy as np
 from model import Model
 from dataset import TetmeshDataset
+import time
 
 def visualize_displacements(model, dataset, pass_all=False):
     if pass_all:
@@ -48,8 +49,9 @@ def main():
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model.pth'
-    epochs = 10000
+    epochs = 100
     batch_size = 4096
+    num_samples = 10000  # how many nodes to sample from the tetmesh
     train = True
     vis_interval = 500
 
@@ -59,17 +61,18 @@ def main():
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, device=device)
-    loader = th.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, num_samples=num_samples, device=device)
     model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+    model = th.compile(model)
     model.to(device)
     
     if train:
+        start = time.time()
         optimizer = th.optim.Adam(model.parameters(), lr=0.000845248320219007)
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         min_loss = float('inf')
         for epoch in range(1, epochs + 1):
-            train_loss = model.train_epoch(loader, optimizer)
+            train_loss = model.train_epoch(optimizer, dataset, batch_size, dataset.device)
             if train_loss < min_loss:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
@@ -78,7 +81,7 @@ def main():
             print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
             if epoch % vis_interval == 0:
                 visualize_displacements(model, dataset)
-
+        print(f'Training took: {time.time() - start:.2f}s')
     model.load_state_dict(th.load(checkpoint_path))
     visualize_displacements(model, dataset, pass_all=True)
 

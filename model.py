@@ -138,11 +138,18 @@ class Model(th.nn.Module):
             x = layer(x)
         return x
     
-    def train_epoch(self, dataloader, optimizer): 
+    def train_epoch(self, optimizer, dataset, batch_size, device): 
+        # no dataloader because it was way slower
         self.train()
         total_loss = 0.
         total_samples = 0
-        for inputs, mask, target in dataloader:
+        num_batches = len(dataset) // batch_size
+        dataset.prepare_for_epoch()
+        for batch_inx in range(num_batches):
+            start_inx = batch_inx * batch_size
+            end_inx = (batch_inx + 1) * batch_size
+            inputs, mask, target = dataset[start_inx:end_inx]
+            inputs, mask, target = inputs.to(device), mask.to(device), target.to(device)
             prediction = self(inputs)
             jacobian = self.__construct_jacobian(inputs)
             loss = self.compute_loss(prediction, target, mask, jacobian)
@@ -167,7 +174,6 @@ class Model(th.nn.Module):
         return result
     
     def compute_loss(self, prediction, target, mask, jacobian):
-        where_tissue = mask == 0
         where_skull = mask == 1
         where_jaw = mask == 2
         where_surface = mask == 3

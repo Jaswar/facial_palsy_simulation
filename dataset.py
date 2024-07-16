@@ -54,13 +54,14 @@ class MeshDataset(th.utils.data.Dataset):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, tol=1.0, stol=1e-5, device='cpu'):
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
         self.skull_path = skull_path
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
+        self.num_samples = num_samples
         self.tol = tol
         self.stol = stol
         self.device = device
@@ -99,9 +100,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.relevant_mask = self.mask[self.relevant_indices]
         self.relevant_targets = self.deformed_nodes[self.relevant_indices]
 
-        self.relevant_nodes = th.tensor(self.relevant_nodes).to(device).float()
-        self.relevant_mask = th.tensor(self.relevant_mask).to(device).float()
-        self.relevant_targets = th.tensor(self.relevant_targets).to(device).float()
+        self.relevant_nodes = th.tensor(self.relevant_nodes).float()
+        self.relevant_mask = th.tensor(self.relevant_mask).float()
+        self.relevant_targets = th.tensor(self.relevant_targets).float()
 
     def visualize(self):
         skull_nodes = self.nodes[self.skull_mask]
@@ -189,16 +190,24 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.jaw_mask] = 2
         self.mask[self.surface_mask] = 3
 
+    def prepare_for_epoch(self):
+        self.epoch_nodes = self.relevant_nodes.clone()
+        self.epoch_mask = self.relevant_mask.clone()
+        self.epoch_targets = self.relevant_targets.clone()
+
+        idx = th.randperm(self.epoch_nodes.shape[0])
+        self.epoch_nodes = self.epoch_nodes[idx]
+        self.epoch_mask = self.epoch_mask[idx]
+        self.epoch_targets = self.epoch_targets[idx]    
+
     def __len__(self):
-        return 10000
+        return self.num_samples
     
     def __getitem__(self, idx):
         if th.is_tensor(idx):
             idx = idx.tolist()
-        
-        idx = np.random.randint(0, len(self.relevant_nodes))
 
-        return self.relevant_nodes[idx], self.relevant_mask[idx], self.relevant_targets[idx]
+        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
 
 
 if __name__ == '__main__':

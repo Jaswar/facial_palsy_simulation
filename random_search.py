@@ -41,7 +41,7 @@ def run_configuration(config, dataset, budget=10 * 60):
     epoch = 0
     while time.time() - start_time < budget:
         epoch += 1
-        train_loss = model.train_epoch(loader, optimizer)
+        train_loss = model.train_epoch(loader, optimizer, dataset.device)
         if train_loss < best_loss:
             best_loss = train_loss
             best_model = copy.deepcopy(model)
