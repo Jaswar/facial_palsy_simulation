@@ -100,9 +100,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.relevant_mask = self.mask[self.relevant_indices]
         self.relevant_targets = self.deformed_nodes[self.relevant_indices]
 
-        self.relevant_nodes = th.tensor(self.relevant_nodes).float()
-        self.relevant_mask = th.tensor(self.relevant_mask).float()
-        self.relevant_targets = th.tensor(self.relevant_targets).float()
+        self.relevant_nodes = th.tensor(self.relevant_nodes).to(device).float()
+        self.relevant_mask = th.tensor(self.relevant_mask).to(device).float()
+        self.relevant_targets = th.tensor(self.relevant_targets).to(device).float()
 
     def visualize(self):
         skull_nodes = self.nodes[self.skull_mask]

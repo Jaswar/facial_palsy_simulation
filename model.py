@@ -6,6 +6,7 @@ import copy
 
 # pytorch implementation of procrustes
 # based on https://gist.github.com/mkocabas/54ea2ff3b03260e3fedf8ad22536f427
+@th.compile
 def procrustes_loss(S1, S2):
     '''
     Computes a similarity transform (sR, t) that takes
@@ -65,13 +66,14 @@ def procrustes_loss(S1, S2):
     return error
 
 
+@th.compile
 def deformation_loss(jacobian):
     # perform singular value decomposition
     U, _, V = th.svd(jacobian)
 
     # Construct Z that fixes the orientation of R to get det(R)=1.
     Z = th.eye(U.shape[1], device=jacobian.device).unsqueeze(0)
-    Z = Z.repeat(U.shape[0],1,1)
+    Z = Z.repeat(U.shape[0], 1, 1)
     Z[:, -1, -1] *= th.sign(th.det(U.bmm(V.permute(0,2,1))))
 
     # construct R = VZU^T
@@ -121,7 +123,7 @@ class Model(th.nn.Module):
     
     def fourier_encode(self, x):
         # based on https://github.com/jmclong/random-fourier-features-pytorch/blob/main/rff/functional.py
-        features = th.arange(0, self.fourier_features, device=x.device)
+        features = th.arange(0, self.fourier_features, device=x.device, dtype=x.dtype)
         features = np.pi * 2 ** features
         xff = features * x.unsqueeze(-1)
         xff = th.cat([th.sin(xff), th.cos(xff)], dim=-1)
@@ -149,7 +151,6 @@ class Model(th.nn.Module):
             start_inx = batch_inx * batch_size
             end_inx = (batch_inx + 1) * batch_size
             inputs, mask, target = dataset[start_inx:end_inx]
-            inputs, mask, target = inputs.to(device), mask.to(device), target.to(device)
             prediction = self(inputs)
             jacobian = self.__construct_jacobian(inputs)
             loss = self.compute_loss(prediction, target, mask, jacobian)
@@ -178,17 +179,17 @@ class Model(th.nn.Module):
         where_jaw = mask == 2
         where_surface = mask == 3
 
-        surface_loss = th.tensor(0., device=prediction.device)
+        surface_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_surface.sum() > 0:
             surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
         surface_loss *= self.w_surface
         
-        skull_loss = th.tensor(0., device=prediction.device)
+        skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_skull.sum() > 0:
             skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
         skull_loss *= self.w_skull
 
-        jaw_loss = th.tensor(0., device=prediction.device)
+        jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_jaw.sum() > 1:  # need at least two points, othwerwise we get nan
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw

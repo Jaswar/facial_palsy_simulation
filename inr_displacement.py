@@ -49,11 +49,12 @@ def main():
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model.pth'
-    epochs = 100
+    epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
     train = True
-    vis_interval = 500
+    vis_interval = 1000
+    benchmark = True  # execute only 100 epochs, exclude compilation time, do not save the model
 
     if th.cuda.is_available():
         device = 'cuda'
@@ -66,24 +67,31 @@ def main():
     model = th.compile(model)
     model.to(device)
     
+    if benchmark:
+        epochs = 100
+
     if train:
-        start = time.time()
         optimizer = th.optim.Adam(model.parameters(), lr=0.000845248320219007)
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
+        if benchmark:  # initialization that compiles some of the methods, must be done here to exclude from benchmark
+            model.train_epoch(optimizer, dataset, batch_size, dataset.device)
         min_loss = float('inf')
+        start = time.time()
         for epoch in range(1, epochs + 1):
             train_loss = model.train_epoch(optimizer, dataset, batch_size, dataset.device)
-            if train_loss < min_loss:
+            if train_loss < min_loss and not benchmark:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
             # lr_scheduler.step()
 
             print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
-            if epoch % vis_interval == 0:
+            if epoch % vis_interval == 0 and not benchmark:
                 visualize_displacements(model, dataset)
         print(f'Training took: {time.time() - start:.2f}s')
-    model.load_state_dict(th.load(checkpoint_path))
-    visualize_displacements(model, dataset, pass_all=True)
+
+    if not benchmark:
+        model.load_state_dict(th.load(checkpoint_path))
+        visualize_displacements(model, dataset, pass_all=True)
 
 if __name__ == '__main__':
     main()
