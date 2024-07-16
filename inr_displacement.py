@@ -47,9 +47,9 @@ def main():
     jaw_path = 'data/jaw.obj'
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
-    deformed_path = 'data/ground_truths/deformed_surface_001.obj'
-    checkpoint_path = 'checkpoints/best_model.pth'
-    train = True
+    deformed_path = 'data/ground_truths/deformed_surface_001.obj'  # 17 for figure 37 from the thesis
+    checkpoint_path = 'checkpoints/best_model_001.pth'
+    train = False
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh

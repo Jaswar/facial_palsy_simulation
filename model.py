@@ -98,7 +98,7 @@ class Model(th.nn.Module):
     def __init__(self, input_size=3, output_size=3, 
                  num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
                  with_fourier=True, fourier_features=10, 
-                 w_tissue=0.08, w_jaw=1., w_skull=2., w_surface=10.):
+                 w_tissue=0.02, w_jaw=1., w_skull=2., w_surface=10.):
         super(Model, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
