@@ -95,12 +95,15 @@ class Sin(th.nn.Module):
 
 class Model(th.nn.Module):
     
-    def __init__(self, input_size=3, output_size=3, num_hidden_layers=3, hidden_size=32, with_fourier=True, fourier_features=10, 
+    def __init__(self, input_size=3, output_size=3, 
+                 num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
+                 with_fourier=True, fourier_features=10, 
                  w_tissue=0.02, w_jaw=1., w_skull=2., w_surface=10.):
         super(Model, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.use_sigmoid_output = use_sigmoid_output
         self.output_size = output_size
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
@@ -120,6 +123,10 @@ class Model(th.nn.Module):
             self.layers.append(th.nn.Linear(hidden_size, hidden_size))
             self.layers.append(Sin())
         self.layers.append(th.nn.Linear(hidden_size, output_size))
+        if use_sigmoid_output:
+            self.layers.append(th.nn.Sigmoid())
+            self.scale = th.nn.Parameter(th.tensor(1., dtype=th.float32), requires_grad=True)
+            self.translation = th.nn.Parameter(th.tensor(0., dtype=th.float32), requires_grad=True)
     
     def fourier_encode(self, x):
         # based on https://github.com/jmclong/random-fourier-features-pytorch/blob/main/rff/functional.py
@@ -138,6 +145,8 @@ class Model(th.nn.Module):
             x = self.fourier_encode(x)
         for layer in self.layers:
             x = layer(x)
+        if self.use_sigmoid_output:
+            x = x * self.scale + self.translation
         return x
     
     def train_epoch(self, optimizer, dataset, batch_size, device): 
@@ -190,7 +199,7 @@ class Model(th.nn.Module):
         skull_loss *= self.w_skull
 
         jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_jaw.sum() > 1:  # need at least two points, othwerwise we get nan
+        if where_jaw.sum() > 2:  # need at least two points, othwerwise we get nan
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 

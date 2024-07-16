@@ -15,6 +15,7 @@ def sample_configuration():
         'batch_size': 2 ** np.random.randint(5, 14),
         'fourier_features': np.random.randint(5, 20),
         'optimizer': np.random.choice(['adam', 'sgd', 'rmsprop']),
+        'use_sigmoid_output': np.random.choice([True, False]),
     }
     return config
 
@@ -22,7 +23,9 @@ def sample_configuration():
 def run_configuration(config, dataset, budget=10 * 60):
     model = Model(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
-                  fourier_features=config['fourier_features'])
+                  fourier_features=config['fourier_features'],
+                  use_sigmoid_output=config['use_sigmoid_output'])
+    model = th.compile(model)
     model.to(dataset.device)
     # get the optimizer
     # considered putting objects in sample_configuration, but they do not serialize
@@ -32,7 +35,6 @@ def run_configuration(config, dataset, budget=10 * 60):
         'rmsprop': th.optim.RMSprop,
     }
     optimizer = optimizers[config['optimizer']](model.parameters(), lr=config['learning_rate'])
-    loader = th.utils.data.DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
 
     start_time = time.time()
 
@@ -41,7 +43,7 @@ def run_configuration(config, dataset, budget=10 * 60):
     epoch = 0
     while time.time() - start_time < budget:
         epoch += 1
-        train_loss = model.train_epoch(loader, optimizer, dataset.device)
+        train_loss = model.train_epoch(optimizer, dataset, config['batch_size'], dataset.device)
         if train_loss < best_loss:
             best_loss = train_loss
             best_model = copy.deepcopy(model)
