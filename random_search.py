@@ -15,16 +15,17 @@ def sample_configuration():
         'batch_size': 2 ** np.random.randint(5, 14),
         'fourier_features': np.random.randint(5, 20),
         'optimizer': np.random.choice(['adam', 'sgd', 'rmsprop']),
-        'use_sigmoid_output': np.random.choice([True, False]),
+        'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
     }
     return config
 
 
 def run_configuration(config, dataset, budget=10 * 60):
+    use_sigmoid_output = config['use_sigmoid_output'] == 'true'
     model = Model(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
                   fourier_features=config['fourier_features'],
-                  use_sigmoid_output=config['use_sigmoid_output'])
+                  use_sigmoid_output=use_sigmoid_output)
     model = th.compile(model)
     model.to(dataset.device)
     # get the optimizer
