@@ -49,10 +49,11 @@ def main():
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model.pth'
+    train = True
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
-    train = True
+    print_interval = 20
     vis_interval = 1000
     benchmark = True  # execute only 100 epochs, exclude compilation time, do not save the model
 
@@ -84,7 +85,8 @@ def main():
                 th.save(model.state_dict(), checkpoint_path)
             # lr_scheduler.step()
 
-            print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
+            if epoch % print_interval == 0:
+                print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
             if epoch % vis_interval == 0 and not benchmark:
                 visualize_displacements(model, dataset)
         print(f'Training took: {time.time() - start:.2f}s')

@@ -80,6 +80,11 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         # nodes from the original tetmesh with surface points deformed (the rest is unchanged)
         self.deformed_nodes = None
+
+        # num_samples sampled nodes from the tetmesh, reshuffled at each epoch in the prepare_for_epoch method
+        self.epoch_nodes = None
+        self.epoch_mask = None
+        self.epoch_targets = None
         
         self.__read()
 
