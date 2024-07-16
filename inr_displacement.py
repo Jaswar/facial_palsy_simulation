@@ -53,10 +53,12 @@ def main():
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
-    print_interval = 20
-    vis_interval = 100000
+    print_interval = 1
+    vis_interval = 1000
     benchmark = False  # execute only 100 epochs, exclude compilation time, do not save the model
 
+    assert not benchmark or train, 'Cannot benchmark without training'
+    
     if th.cuda.is_available():
         device = 'cuda'
     else:
@@ -83,7 +85,7 @@ def main():
             if train_loss < min_loss and not benchmark:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
-            # lr_scheduler.step()
+            lr_scheduler.step()
 
             if epoch % print_interval == 0:
                 print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
