@@ -199,7 +199,7 @@ class Model(th.nn.Module):
         skull_loss *= self.w_skull
 
         jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_jaw.sum() > 2:  # need at least two points, othwerwise we get nan
+        if where_jaw.sum() > 2:  # with two or less points the loss can become nan
             jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 
