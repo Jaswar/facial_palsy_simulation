@@ -49,8 +49,8 @@ def main():
     deformed_path = 'data/ground_truths/deformed_surface_001.obj'
     checkpoint_path = 'checkpoints/best_model.pth'
     epochs = 10000
-    batch_size = 1000
-    train = False
+    batch_size = 4096
+    train = True
     vis_interval = 500
 
     if th.cuda.is_available():
@@ -61,11 +61,11 @@ def main():
 
     dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, device=device)
     loader = th.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    model = Model(num_hidden_layers=8, hidden_size=256)
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model.to(device)
     
     if train:
-        optimizer = th.optim.Adam(model.parameters(), lr=1e-4)
+        optimizer = th.optim.Adam(model.parameters(), lr=0.000845248320219007)
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         min_loss = float('inf')
         for epoch in range(1, epochs + 1):
@@ -73,7 +73,7 @@ def main():
             if train_loss < min_loss:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)
-            lr_scheduler.step()
+            # lr_scheduler.step()
 
             print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
             if epoch % vis_interval == 0:
