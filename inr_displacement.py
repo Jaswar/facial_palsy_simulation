@@ -54,8 +54,8 @@ def main():
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
     print_interval = 20
-    vis_interval = 1000
-    benchmark = True  # execute only 100 epochs, exclude compilation time, do not save the model
+    vis_interval = 100000
+    benchmark = False  # execute only 100 epochs, exclude compilation time, do not save the model
 
     if th.cuda.is_available():
         device = 'cuda'
