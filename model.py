@@ -166,7 +166,7 @@ class Model(th.nn.Module):
             end_inx = (batch_inx + 1) * batch_size
             inputs, mask, target = dataset[start_inx:end_inx]
             prediction = self(inputs)
-            jacobian = self.__construct_jacobian(inputs)
+            jacobian = self.construct_jacobian(inputs)
             loss = self.compute_loss(prediction, target, mask, jacobian)
 
             optimizer.zero_grad()
@@ -177,7 +177,7 @@ class Model(th.nn.Module):
             total_loss += loss.item() * len(inputs)
         return total_loss / total_samples
 
-    def __construct_jacobian(self, inputs):
+    def construct_jacobian(self, inputs):
         jacobian = th.vmap(th.func.jacrev(self))(inputs)
         jacobian = jacobian.view(inputs.shape[0], self.output_size, self.input_size)
         return jacobian
