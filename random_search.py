@@ -10,22 +10,20 @@ import json
 def sample_configuration():
     config = {
         'num_hidden_layers': np.random.randint(3, 12),
-        'hidden_size': 2 ** np.random.randint(5, 11),
+        'hidden_size': 2 ** np.random.randint(3, 10),
         'learning_rate': 10 ** np.random.uniform(-6, -2),
-        'batch_size': 2 ** np.random.randint(5, 14),
+        'batch_size': 2 ** np.random.randint(10, 14),
         'fourier_features': np.random.randint(5, 20),
-        'optimizer': np.random.choice(['adam', 'sgd', 'rmsprop']),
-        'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
+        'optimizer': np.random.choice(['adam']),
+        # 'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
     }
     return config
 
 
 def run_configuration(config, dataset, budget=10 * 60):
-    use_sigmoid_output = config['use_sigmoid_output'] == 'true'
     model = Model(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
-                  fourier_features=config['fourier_features'],
-                  use_sigmoid_output=use_sigmoid_output)
+                  fourier_features=config['fourier_features'])
     model = th.compile(model)
     model.to(dataset.device)
     # get the optimizer
@@ -36,8 +34,9 @@ def run_configuration(config, dataset, budget=10 * 60):
         'rmsprop': th.optim.RMSprop,
     }
     optimizer = optimizers[config['optimizer']](model.parameters(), lr=config['learning_rate'])
-
+    lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=budget, eta_min=1e-8)
     start_time = time.time()
+    last_lr_step = start_time
 
     best_loss = float('inf')
     best_model = None
@@ -48,7 +47,12 @@ def run_configuration(config, dataset, budget=10 * 60):
         if train_loss < best_loss:
             best_loss = train_loss
             best_model = copy.deepcopy(model)
-        print(f'\rTime {(time.time() - start_time):.2f} - Epoch {epoch} - Loss: {train_loss:.8f}', end='')
+
+        if time.time() - last_lr_step > 1:
+            lr_scheduler.step()
+            last_lr_step = time.time()
+
+        print(f'\rTime {(time.time() - start_time):.2f} - Epoch {epoch} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}', end='')
     print()
     return best_model, best_loss
 
