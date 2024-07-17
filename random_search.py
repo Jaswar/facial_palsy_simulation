@@ -10,7 +10,7 @@ import json
 def sample_configuration():
     config = {
         'num_hidden_layers': np.random.randint(3, 12),
-        'hidden_size': 2 ** np.random.randint(5, 13),
+        'hidden_size': 2 ** np.random.randint(5, 11),
         'learning_rate': 10 ** np.random.uniform(-6, -2),
         'batch_size': 2 ** np.random.randint(5, 14),
         'fourier_features': np.random.randint(5, 20),
