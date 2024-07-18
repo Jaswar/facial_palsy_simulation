@@ -13,8 +13,8 @@ tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.obj"
 tetmesh_base_fn = f"{dataroot}/tetmesh"
 tetmesh_reflected_deformed_fn = f"{dataroot}/tetmesh_contour_ref_deformed.obj"
 
-act_fn = f'{dataroot}/result_data/act_rec.npy'
-act_out_fn = f'{dataroot}/result_data/act_sym.npy'
+act_fn = f'{dataroot}/actuations_017.npy'
+act_out_fn = f'{dataroot}/act_sym.npy'
 
 # X is the symmetry axis.
 surf = pv.PolyData(tetmesh_contour_fn)
@@ -106,35 +106,35 @@ grid['values'] = element_values
 element_values_sym = (barries[:, 0] + 21) / np.max(np.abs(barries[:, 0] + 21))  ## Ersatz for actuations - one per element
 element_values_sym[flipped_points] = element_values_sym[mapped_element]
 
-grid['values symmetric'] = element_values_sym
-print(grid)
-p = pv.Plotter(shape=(1,2))
-p.subplot(0, 0)
-p.add_mesh(grid.copy(), scalars='values', clim=(-1, 1), cmap='magma')
-p.subplot(0, 1)
-p.add_mesh(grid, scalars='values symmetric', clim=(-1, 1), cmap='magma')
-p.add_mesh(x_plane, color='green', opacity=0.5)
-p.link_views()
-p.show()
-
-## Real actuations
-# act = np.load(act_fn)
-# act_sym = act.copy()
-# act_sym[flipped_points] = act[mapped_element]
-# assert not np.allclose(act, act_sym)
-#
-# grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
-# grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
-#
+# grid['values symmetric'] = element_values_sym
+# print(grid)
 # p = pv.Plotter(shape=(1,2))
 # p.subplot(0, 0)
-# p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(1, 5), cmap='RdBu')
+# p.add_mesh(grid.copy(), scalars='values', clim=(-1, 1), cmap='magma')
 # p.subplot(0, 1)
-# p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(1, 5), cmap='RdBu')
-# p.add_mesh(x_plane, color='green', opacity=0.2)
+# p.add_mesh(grid, scalars='values symmetric', clim=(-1, 1), cmap='magma')
+# p.add_mesh(x_plane, color='green', opacity=0.5)
 # p.link_views()
 # p.show()
-# print('Done! Saving...')
-#
-# np.save(act_out_fn, act_sym)
-# print('Saved!')
+
+# Real actuations
+act = np.load(act_fn)
+act_sym = act.copy()
+act_sym[flipped_points] = act[mapped_element]
+assert not np.allclose(act, act_sym)
+
+grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
+grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
+
+p = pv.Plotter(shape=(1,2))
+p.subplot(0, 0)
+p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(2, 4), cmap='RdBu')
+p.subplot(0, 1)
+p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(2, 4), cmap='RdBu')
+p.add_mesh(x_plane, color='green', opacity=0.2)
+p.link_views()
+p.show()
+print('Done! Saving...')
+
+np.save(act_out_fn, act_sym)
+print('Saved!')

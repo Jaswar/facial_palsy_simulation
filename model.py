@@ -129,6 +129,7 @@ class Model(th.nn.Module):
             self.translation = th.nn.Parameter(th.tensor(0., dtype=th.float32), requires_grad=True)
 
         # initialization from the SIREN paper
+        # originally they suggest using sqrt(6/in) but sqrt(3/in) seems to work better
         for layer in self.layers:
             if hasattr(layer, 'weight'):
                 th.nn.init.uniform_(layer.weight, a=-np.sqrt(6 / layer.in_features), b=np.sqrt(6 / layer.in_features))

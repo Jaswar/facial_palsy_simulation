@@ -100,25 +100,17 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.__normalize()
 
         self.midpoint = np.mean(self.nodes[:, 0])
-        self.relevant_indices = np.where(self.nodes[:, 0] < self.midpoint)[0]
-        self.relevant_nodes = self.nodes[self.relevant_indices]
-        self.relevant_mask = self.mask[self.relevant_indices]
-        self.relevant_targets = self.deformed_nodes[self.relevant_indices]
+        self.healthy_indices = self.nodes[:, 0] < self.midpoint
 
-        self.relevant_nodes = th.tensor(self.relevant_nodes).to(device).float()
-        self.relevant_mask = th.tensor(self.relevant_mask).to(device).float()
-        self.relevant_targets = th.tensor(self.relevant_targets).to(device).float()
+        self.nodes = th.tensor(self.nodes).to(device).float()
+        self.mask = th.tensor(self.mask).to(device).float()
+        self.targets = th.tensor(self.deformed_nodes).to(device).float()
 
     def visualize(self):
         skull_nodes = self.nodes[self.skull_mask]
         jaw_nodes = self.nodes[self.jaw_mask]
         surface_nodes = self.nodes[self.surface_mask]
         tissue_nodes = self.nodes[self.tissue_mask]
-
-        def_skull_nodes = self.deformed_nodes[self.skull_mask]
-        def_jaw_nodes = self.deformed_nodes[self.jaw_mask]
-        def_surface_nodes = self.deformed_nodes[self.surface_mask]
-        def_tissue_nodes = self.deformed_nodes[self.tissue_mask]
 
         cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
         celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
@@ -196,9 +188,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.surface_mask] = 3
 
     def prepare_for_epoch(self):
-        self.epoch_nodes = self.relevant_nodes.clone()
-        self.epoch_mask = self.relevant_mask.clone()
-        self.epoch_targets = self.relevant_targets.clone()
+        self.epoch_nodes = self.nodes.clone()
+        self.epoch_mask = self.mask.clone()
+        self.epoch_targets = self.targets.clone()
 
         idx = th.randperm(self.epoch_nodes.shape[0])
         self.epoch_nodes = self.epoch_nodes[idx]

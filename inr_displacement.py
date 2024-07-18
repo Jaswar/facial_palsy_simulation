@@ -9,25 +9,20 @@ import time
 def visualize_displacements(model, dataset, pass_all=False):
     if pass_all:
         mask = th.zeros(dataset.nodes.shape[0], dtype=th.bool)
-        mask[dataset.relevant_indices] = True
-        flipped_vertices = dataset.nodes.copy()
+        mask[dataset.healthy_indices] = True
+        flipped_vertices = dataset.nodes.clone()
         flipped_vertices[~mask, 0] = dataset.midpoint - flipped_vertices[~mask, 0] + dataset.midpoint
-        predicted_vertices = model.predict(th.tensor(flipped_vertices).to(dataset.device).float()).cpu().numpy()
+        predicted_vertices = model.predict(flipped_vertices).cpu().numpy()
         predicted_vertices[~mask, 0] = dataset.midpoint - predicted_vertices[~mask, 0] + dataset.midpoint
     else:
         predicted_vertices = dataset.deformed_nodes.copy()
-        indices = np.zeros(dataset.nodes.shape[0], dtype=bool)
-        indices[dataset.relevant_indices] = True
-        part_indices = np.logical_or(dataset.mask == 1, dataset.mask == 3)
-        part_indices = np.logical_or(part_indices, dataset.mask == 2)
-        part_indices = np.logical_or(part_indices, dataset.mask == 0)
-        indices = np.logical_and(indices, part_indices)
-        predicted_vertices[indices] = model.predict(th.tensor(dataset.nodes).to(dataset.device).float()).cpu().numpy()[indices]
+        indices = np.ones(dataset.nodes.shape[0], dtype=bool)
+        predicted_vertices[indices] = model.predict(dataset.nodes).cpu().numpy()[indices]
 
     cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
     celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
 
-    neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes)
+    neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes.cpu().numpy())
     predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
     ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, dataset.deformed_nodes)
     
@@ -47,9 +42,9 @@ def main():
     jaw_path = 'data/jaw.obj'
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
-    deformed_path = 'data/ground_truths/deformed_surface_001.obj'  # 17 for figure 37 from the thesis
-    checkpoint_path = 'checkpoints/best_model_001.pth'
-    train = False
+    deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
+    checkpoint_path = 'checkpoints/best_model_017.pth'
+    train = True
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh

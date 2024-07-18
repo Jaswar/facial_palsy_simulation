@@ -35,21 +35,16 @@ def main():
     minv = np.min(nodes)
     maxv = np.max(nodes)
     nodes = (nodes - minv) / (maxv - minv)
-
-    midpoint = np.mean(nodes[:, 0])
-    relevant_indices = nodes[:, 0] < midpoint
+    barries = nodes[elements]
+    barries = np.mean(barries, axis=1)
+    barries = th.tensor(barries).float()
 
     model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model = th.compile(model)
     model.load_state_dict(th.load(model_path))
 
     with th.no_grad():
-        flipped_vertices = nodes.copy()
-        flipped_vertices[~relevant_indices, 0] = midpoint - flipped_vertices[~relevant_indices, 0] + midpoint
-        nodes = th.tensor(flipped_vertices).float()
-        nodes = model.predict(nodes).numpy()
-        nodes[~relevant_indices, 0] = midpoint - nodes[~relevant_indices, 0] + midpoint
-        deformation_gradient = model.construct_jacobian(th.tensor(flipped_vertices).float())
+        deformation_gradient = model.construct_jacobian(barries)
     
     actuations = get_actuations(deformation_gradient)
     visualize_actuations(nodes, elements, actuations)
