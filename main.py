@@ -23,8 +23,8 @@ def visualize_displacements(model, dataset, pass_all=False):
     celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
 
     neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes.cpu().numpy())
-    predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
     ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, dataset.deformed_nodes)
+    predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
     
     plot = pv.Plotter(shape=(1, 3))
     plot.subplot(0, 0)
@@ -45,6 +45,7 @@ def main():
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
     checkpoint_path = 'checkpoints/best_model.pth'
     train = True
+    prestrain = True
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
@@ -60,8 +61,8 @@ def main():
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, num_samples=num_samples, device=device)
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, prestrain=prestrain, num_samples=num_samples, device=device)
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40.)
     model = th.compile(model)
     model.to(device)
     

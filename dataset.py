@@ -54,13 +54,14 @@ class MeshDataset(th.utils.data.Dataset):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, prestrain=False, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
         self.skull_path = skull_path
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
+        self.prestrain = prestrain
         self.num_samples = num_samples
         self.tol = tol
         self.stol = stol
@@ -101,6 +102,9 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         self.midpoint = np.mean(self.nodes[:, 0])
         self.healthy_indices = self.nodes[:, 0] < self.midpoint
+
+        if prestrain:
+            self.__prestrain()
 
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
@@ -186,6 +190,17 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.skull_mask] = 1
         self.mask[self.jaw_mask] = 2
         self.mask[self.surface_mask] = 3
+
+    def __prestrain(self):
+        healthy_surface_idx = np.logical_and(self.surface_mask, self.healthy_indices)
+        unhealthy_surface_idx = np.logical_and(self.surface_mask, ~self.healthy_indices)
+
+        self.deformed_nodes = self.nodes.copy()
+        self.deformed_nodes[healthy_surface_idx, 0] = self.midpoint - self.deformed_nodes[healthy_surface_idx, 0] + self.midpoint
+        kdtree = KDTree(self.deformed_nodes[healthy_surface_idx])
+        _, indices = kdtree.query(self.deformed_nodes[unhealthy_surface_idx])
+        self.deformed_nodes[unhealthy_surface_idx] = self.deformed_nodes[healthy_surface_idx][indices]
+        self.deformed_nodes[healthy_surface_idx, 0] = self.midpoint - self.deformed_nodes[healthy_surface_idx, 0] + self.midpoint
 
     def prepare_for_epoch(self):
         self.epoch_nodes = self.nodes.clone()
