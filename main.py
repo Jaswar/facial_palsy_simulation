@@ -45,7 +45,11 @@ def main():
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
     checkpoint_path = 'checkpoints/best_model.pth'
     train = True
-    prestrain = True
+
+    generate_prestrain = False  # the dataset will generate the symmetric face, instead of targeting the expression
+    use_prestrain = True  # whether to use the INR for the symmetric face
+    prestrain_model_path = 'checkpoints/best_model_prestrain.pth'  # path to the INR for the symmetric/prestrained face
+
     epochs = 10000
     batch_size = 4096
     num_samples = 10000  # how many nodes to sample from the tetmesh
@@ -61,8 +65,17 @@ def main():
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, prestrain=prestrain, num_samples=num_samples, device=device)
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if prestrain else 10., w_tissue=0.2)
+    prestrain_model = None
+    if use_prestrain:
+        prestrain_model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+        prestrain_model = th.compile(prestrain_model)
+        prestrain_model.load_state_dict(th.load(prestrain_model_path))
+    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, 
+                             generate_prestrain=generate_prestrain, use_prestrain=use_prestrain, prestrain_model=prestrain_model,
+                             num_samples=num_samples, device=device)
+    dataset.visualize()
+    
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if generate_prestrain else 10.)
     model = th.compile(model)
     model.to(device)
     

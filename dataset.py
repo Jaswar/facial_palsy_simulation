@@ -54,14 +54,22 @@ class MeshDataset(th.utils.data.Dataset):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, prestrain=False, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, 
+                 generate_prestrain=False, use_prestrain=False, prestrain_model=None, 
+                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
         self.skull_path = skull_path
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
-        self.prestrain = prestrain
+
+        self.generate_prestrain = generate_prestrain
+        self.use_prestrain = use_prestrain
+        self.prestrain_model = prestrain_model
+        assert self.prestrain_model is not None or not self.use_prestrain, 'Prestrain model must be provided if use_prestrain is True'
+        assert not generate_prestrain or not use_prestrain, 'Cannot generate and use prestrain at the same time'
+
         self.num_samples = num_samples
         self.tol = tol
         self.stol = stol
@@ -100,25 +108,29 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         self.__normalize()
 
+        if self.use_prestrain:
+            self.__replace_with_prestrain()
+
         self.midpoint = np.mean(self.nodes[:, 0])
         self.healthy_indices = self.nodes[:, 0] < self.midpoint
 
-        if prestrain:
-            self.__prestrain()
+        if self.generate_prestrain:
+            self.__symmetrize_surface()
 
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
         self.targets = th.tensor(self.deformed_nodes).to(device).float()
 
     def visualize(self):
-        skull_nodes = self.nodes[self.skull_mask]
-        jaw_nodes = self.nodes[self.jaw_mask]
-        surface_nodes = self.nodes[self.surface_mask]
-        tissue_nodes = self.nodes[self.tissue_mask]
+        numpy_nodes = self.nodes.cpu().numpy()
+        skull_nodes = numpy_nodes[self.skull_mask]
+        jaw_nodes = numpy_nodes[self.jaw_mask]
+        surface_nodes = numpy_nodes[self.surface_mask]
+        tissue_nodes = numpy_nodes[self.tissue_mask]
 
         cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
         celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
-        grid = pv.UnstructuredGrid(cells, celltypes, self.nodes)
+        grid = pv.UnstructuredGrid(cells, celltypes, numpy_nodes)
         def_grid = pv.UnstructuredGrid(cells, celltypes, self.deformed_nodes)
 
         plot = pv.Plotter(shape=(1, 2))
@@ -191,7 +203,10 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.jaw_mask] = 2
         self.mask[self.surface_mask] = 3
 
-    def __prestrain(self):
+    def __replace_with_prestrain(self):
+        self.nodes = self.prestrain_model.predict(th.tensor(self.nodes).float()).numpy()
+
+    def __symmetrize_surface(self):
         healthy_surface_idx = np.logical_and(self.surface_mask, self.healthy_indices)
         unhealthy_surface_idx = np.logical_and(self.surface_mask, ~self.healthy_indices)
 

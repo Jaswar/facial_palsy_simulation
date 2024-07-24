@@ -28,8 +28,8 @@ def visualize_actuations(nodes, elements, actuations):
 
 def main():
     tetmesh_path = 'data/tetmesh'
-    model_path = 'checkpoints/best_model_017_prestrain.pth'
-    actuations_path = 'data/actuations_017_prestrain.npy'
+    model_path = 'checkpoints/best_model_017_from_prestrain.pth'
+    actuations_path = 'data/actuations_017_from_prestrain.npy'
 
     nodes, elements, _ = Tetmesh.read_tetgen_file(tetmesh_path)
     minv = np.min(nodes)

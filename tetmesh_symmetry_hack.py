@@ -13,8 +13,8 @@ tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.obj"
 tetmesh_base_fn = f"{dataroot}/tetmesh"
 tetmesh_reflected_deformed_fn = f"{dataroot}/tetmesh_contour_ref_deformed.obj"
 
-act_fn = f'{dataroot}/actuations_017.npy'
-act_out_fn = f'{dataroot}/act_sym_017.npy'
+act_fn = f'{dataroot}/actuations_017_from_prestrain.npy'
+act_out_fn = f'{dataroot}/act_sym_017_from_prestrain.npy'
 
 # X is the symmetry axis.
 surf = pv.PolyData(tetmesh_contour_fn)
