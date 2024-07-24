@@ -62,7 +62,7 @@ def main():
     print(f'Using device: {device}')
 
     dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, prestrain=prestrain, num_samples=num_samples, device=device)
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40.)
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if prestrain else 10., w_tissue=0.2)
     model = th.compile(model)
     model.to(device)
     
