@@ -7,14 +7,21 @@ import numpy as np
 from scipy.spatial import KDTree
 
 from tetmesh import Tetmesh
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--act_fn', type=str, default='actuations_017_from_prestrain.npy')
+parser.add_argument('--act_out_fn', type=str, default='act_sym_017_from_prestrain.npy')
+args = parser.parse_args()
+
 
 dataroot = "data"
 tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.obj"
 tetmesh_base_fn = f"{dataroot}/tetmesh"
 tetmesh_reflected_deformed_fn = f"{dataroot}/tetmesh_contour_ref_deformed.obj"
 
-act_fn = f'{dataroot}/actuations_017_from_prestrain.npy'
-act_out_fn = f'{dataroot}/act_sym_017_from_prestrain.npy'
+act_fn = f'{dataroot}/{args.act_fn}'
+act_out_fn = f'{dataroot}/{args.act_out_fn}'
 
 # X is the symmetry axis.
 surf = pv.PolyData(tetmesh_contour_fn)
@@ -126,14 +133,14 @@ assert not np.allclose(act, act_sym)
 grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
 grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
 
-p = pv.Plotter(shape=(1,2))
-p.subplot(0, 0)
-p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(2, 4), cmap='RdBu')
-p.subplot(0, 1)
-p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(2, 4), cmap='RdBu')
-p.add_mesh(x_plane, color='green', opacity=0.2)
-p.link_views()
-p.show()
+# p = pv.Plotter(shape=(1,2))
+# p.subplot(0, 0)
+# p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(2, 4), cmap='RdBu')
+# p.subplot(0, 1)
+# p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(2, 4), cmap='RdBu')
+# p.add_mesh(x_plane, color='green', opacity=0.2)
+# p.link_views()
+# p.show()
 print('Done! Saving...')
 
 np.save(act_out_fn, act_sym)

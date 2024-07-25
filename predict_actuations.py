@@ -3,6 +3,8 @@ import numpy as np
 from tetmesh import Tetmesh
 from model import Model
 import pyvista as pv
+import argparse
+import json
 
 def get_actuations(deformation_gradient):
     U, s, V = th.svd(deformation_gradient)
@@ -26,10 +28,14 @@ def visualize_actuations(nodes, elements, actuations):
     plot.show()
 
 
-def main():
+def main(args):
     tetmesh_path = 'data/tetmesh'
-    model_path = 'checkpoints/best_model_017_from_prestrain.pth'
-    actuations_path = 'data/actuations_017_from_prestrain.npy'
+    model_path = args.model_path
+    actuations_path = args.actuations_path
+    config_path = args.config_path
+
+    with open(config_path, 'r') as f:
+        config = json.load(f)
 
     nodes, elements, _ = Tetmesh.read_tetgen_file(tetmesh_path)
     minv = np.min(nodes)
@@ -39,7 +45,13 @@ def main():
     barries = np.mean(barries, axis=1)
     barries = th.tensor(barries).float()
 
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+    model = Model(num_hidden_layers=config['num_hidden_layers'], 
+                  hidden_size=config['hidden_size'],
+                  fourier_features=config['fourier_features'],
+                  w_surface=config['w_surface'],
+                  w_tissue=config['w_tissue'],
+                  w_jaw=config['w_jaw'],
+                  w_skull=config['w_skull'])
     model = th.compile(model)
     model.load_state_dict(th.load(model_path))
 
@@ -47,8 +59,13 @@ def main():
         deformation_gradient = model.construct_jacobian(barries)
     
     actuations = get_actuations(deformation_gradient)
-    visualize_actuations(nodes, elements, actuations)
+    # visualize_actuations(nodes, elements, actuations)
     np.save(actuations_path, actuations.cpu().numpy())
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017_from_prestrain.pth')
+    parser.add_argument('--actuations_path', type=str, default='data/actuations_017_from_prestrain.npy')
+    parser.add_argument('--config_path', type=str, default='checkpoints/config_017_from_prestrain.json')
+    args = parser.parse_args()
+    main(args)
