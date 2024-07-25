@@ -47,7 +47,7 @@ def main():
     train = True
 
     generate_prestrain = False  # the dataset will generate the symmetric face, instead of targeting the expression
-    use_prestrain = True  # whether to use the INR for the symmetric face
+    use_prestrain = False  # whether to use the INR for the symmetric face
     prestrain_model_path = 'checkpoints/best_model_prestrain.pth'  # path to the INR for the symmetric/prestrained face
 
     epochs = 10000
@@ -75,9 +75,10 @@ def main():
                              num_samples=num_samples, device=device)
     dataset.visualize()
     
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if generate_prestrain else 10.)
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if generate_prestrain else 10., w_tissue=0.001)
     model = th.compile(model)
     model.to(device)
+    print(sum(p.numel() for p in model.parameters() if p.requires_grad))
     
     if benchmark:
         epochs = 100

@@ -9,8 +9,7 @@ import json
 def get_actuations(deformation_gradient):
     U, s, V = th.svd(deformation_gradient)
     s = th.diag_embed(s)
-    A = th.bmm(V, th.bmm(s, V.permute(0, 2, 1)))
-    return A
+    return V, s
 
 
 def visualize_actuations(nodes, elements, actuations):
@@ -31,7 +30,8 @@ def visualize_actuations(nodes, elements, actuations):
 def main(args):
     tetmesh_path = 'data/tetmesh'
     model_path = args.model_path
-    actuations_path = args.actuations_path
+    V_path = args.V_path
+    s_path = args.s_path
     config_path = args.config_path
 
     with open(config_path, 'r') as f:
@@ -58,14 +58,16 @@ def main(args):
     with th.no_grad():
         deformation_gradient = model.construct_jacobian(barries)
     
-    actuations = get_actuations(deformation_gradient)
+    V, s = get_actuations(deformation_gradient)
     # visualize_actuations(nodes, elements, actuations)
-    np.save(actuations_path, actuations.cpu().numpy())
+    np.save(V_path, V.cpu().numpy())
+    np.save(s_path, s.cpu().numpy())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017_from_prestrain.pth')
-    parser.add_argument('--actuations_path', type=str, default='data/actuations_017_from_prestrain.npy')
-    parser.add_argument('--config_path', type=str, default='checkpoints/config_017_from_prestrain.json')
+    parser.add_argument('--V_path', type=str, default='data/V_017_from_prestrain.npy')
+    parser.add_argument('--s_path', type=str, default='data/s_017_from_prestrain.npy')
+    parser.add_argument('--config_path', type=str, default='checkpoints/best_config.json')
     args = parser.parse_args()
     main(args)

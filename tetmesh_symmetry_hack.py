@@ -8,10 +8,12 @@ from scipy.spatial import KDTree
 
 from tetmesh import Tetmesh
 import argparse
+import torch as th
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--act_fn', type=str, default='actuations_017_from_prestrain.npy')
-parser.add_argument('--act_out_fn', type=str, default='act_sym_017_from_prestrain.npy')
+parser.add_argument('--V_path', type=str, default='data/V_017_from_prestrain.npy')
+parser.add_argument('--s_path', type=str, default='data/s_017_from_prestrain.npy')
+parser.add_argument('--act_out_fn', type=str, default='act_sym_017_dirflip_from_prestrain.npy')
 args = parser.parse_args()
 
 
@@ -20,7 +22,6 @@ tetmesh_contour_fn = f"{dataroot}/tetmesh_contour.obj"
 tetmesh_base_fn = f"{dataroot}/tetmesh"
 tetmesh_reflected_deformed_fn = f"{dataroot}/tetmesh_contour_ref_deformed.obj"
 
-act_fn = f'{dataroot}/{args.act_fn}'
 act_out_fn = f'{dataroot}/{args.act_out_fn}'
 
 # X is the symmetry axis.
@@ -124,23 +125,30 @@ element_values_sym[flipped_points] = element_values_sym[mapped_element]
 # p.link_views()
 # p.show()
 
-# Real actuations
-act = np.load(act_fn)
-act_sym = act.copy()
-act_sym[flipped_points] = act[mapped_element]
-assert not np.allclose(act, act_sym)
+def get_actuations(V, s, flipped_points, mapped_element):
+    V_sym = V.copy()
+    s_sym = s.copy()
+    V_sym[flipped_points] = V[mapped_element]
+    s_sym[flipped_points] = s[mapped_element]
+    V_sym[flipped_points, 0, :] *= -1
+    A = V_sym @ s_sym @ np.transpose(V_sym, [0, 2, 1])
+    return A
 
-grid['Trace(A)'] = np.trace(act, axis1=1, axis2=2)
+# Real actuations
+V, s = np.load(args.V_path), np.load(args.s_path)
+act_sym = get_actuations(V, s, flipped_points, mapped_element)
+
+grid['Trace(A)'] = np.trace(act_sym, axis1=1, axis2=2)
 grid['Trace(A) symmetric'] = np.trace(act_sym, axis1=1, axis2=2)
 
-# p = pv.Plotter(shape=(1,2))
-# p.subplot(0, 0)
-# p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(2, 4), cmap='RdBu')
-# p.subplot(0, 1)
-# p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(2, 4), cmap='RdBu')
-# p.add_mesh(x_plane, color='green', opacity=0.2)
-# p.link_views()
-# p.show()
+p = pv.Plotter(shape=(1,2))
+p.subplot(0, 0)
+p.add_mesh(grid.copy(), scalars='Trace(A)', clim=(2, 4), cmap='RdBu')
+p.subplot(0, 1)
+p.add_mesh(grid, scalars='Trace(A) symmetric', clim=(2, 4), cmap='RdBu')
+p.add_mesh(x_plane, color='green', opacity=0.2)
+p.link_views()
+p.show()
 print('Done! Saving...')
 
 np.save(act_out_fn, act_sym)
