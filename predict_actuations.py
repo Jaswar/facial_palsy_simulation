@@ -60,15 +60,15 @@ def main(args):
     with th.no_grad():
         deformation_gradient = model.construct_jacobian(nodes)
     
-    actuations = get_actuations(deformation_gradient).cpu().numpy()
-    np.save('data/actuations_per_vertex.npy', actuations)
-    # visualize_actuations(nodes, elements, actuations)
+    actuations = get_actuations(deformation_gradient)
+    np.save('data/actuations_017_per_vertex.npy', actuations.cpu().numpy())
+    visualize_actuations(nodes.cpu().numpy(), elements, actuations)
     # np.save(V_path, V.cpu().numpy())
     # np.save(s_path, s.cpu().numpy())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017_from_prestrain.pth')
+    parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017.pth')
     parser.add_argument('--V_path', type=str, default='data/V_017_per_vertex.npy')
     parser.add_argument('--s_path', type=str, default='data/s_017_per_vertex.npy')
     parser.add_argument('--config_path', type=str, default='checkpoints/best_config.json')

@@ -179,6 +179,7 @@ class TetmeshDataset(th.utils.data.Dataset):
 
     def __detect_skull(self):
         self.skull_mask = self.__detect(self.skull, self.tol)
+        self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
         self.skull_nodes = self.nodes[self.skull_mask]
 
     def __detect_jaw(self):
@@ -228,11 +229,15 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_nodes = self.nodes.clone()
         self.epoch_mask = self.mask.clone()
         self.epoch_targets = self.targets.clone()
+        if self.actuations is not None:
+            self.epoch_actuations = self.actuations.clone()
 
         idx = th.randperm(self.epoch_nodes.shape[0])
         self.epoch_nodes = self.epoch_nodes[idx]
         self.epoch_mask = self.epoch_mask[idx]
-        self.epoch_targets = self.epoch_targets[idx]    
+        self.epoch_targets = self.epoch_targets[idx]  
+        if self.actuations is not None:
+            self.epoch_actuations = self.epoch_actuations[idx]  
 
     def __len__(self):
         return self.num_samples
@@ -244,7 +249,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         if self.actuations is None:
             return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], None
         else:
-            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.actuations[idx]
+            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.epoch_actuations[idx]
 
 
 if __name__ == '__main__':

@@ -45,11 +45,11 @@ def main():
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
-    actuations_path = 'data/actuations_per_vertex.npy'
+    actuations_path = 'data/actuations_017_per_vertex.npy'
     checkpoint_path = 'checkpoints/best_model_simulator.pth'
     train = True
 
-    use_prestrain = True  # whether to use the INR for the symmetric face
+    use_prestrain = False  # whether to use the INR for the symmetric face
     prestrain_model_path = 'checkpoints/best_model_prestrain.pth'  # path to the INR for the symmetric/prestrained face
 
     epochs = 10000

@@ -91,7 +91,7 @@ def energy_loss(jacobian, actuations):
     Z = Z.repeat(U.shape[0], 1, 1)
     Z[:, -1, -1] *= th.sign(th.det(U.bmm(V.permute(0,2,1))))
 
-    R = V.bmm(Z.bmm(U.permute(0,2,1)))
+    R = U.bmm(Z.bmm(V.permute(0,2,1)))
 
     return th.linalg.matrix_norm(jacobian - th.bmm(R, actuations)).mean()
 
@@ -231,11 +231,11 @@ class Model(th.nn.Module):
             skull_loss *= self.w_skull
 
             jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-            if where_jaw.sum() > 0:  # with two or less points the loss can become nan
+            if where_jaw.sum() > 0:
                 jaw_loss = th.nn.functional.l1_loss(prediction[where_jaw], target[where_jaw])
             jaw_loss *= self.w_jaw
 
             e_loss = energy_loss(jacobian, actuations)
-            loss = skull_loss + jaw_loss + e_loss * 0.05
+            loss = skull_loss + jaw_loss + e_loss * 0.5
         return loss
 
