@@ -83,6 +83,19 @@ def deformation_loss(jacobian):
     return th.linalg.matrix_norm(jacobian - R).mean()
 
 
+@th.compile
+def energy_loss(jacobian, actuations):
+    U, _, V = th.svd(th.bmm(jacobian, actuations))
+
+    Z = th.eye(U.shape[1], device=jacobian.device).unsqueeze(0)
+    Z = Z.repeat(U.shape[0], 1, 1)
+    Z[:, -1, -1] *= th.sign(th.det(U.bmm(V.permute(0,2,1))))
+
+    R = V.bmm(Z.bmm(U.permute(0,2,1)))
+
+    return th.linalg.matrix_norm(jacobian - th.bmm(R, actuations)).mean()
+
+
 # module implementation of a sine activation (doesn't exist in PyTorch)
 class Sin(th.nn.Module):
 
@@ -154,7 +167,7 @@ class Model(th.nn.Module):
             x = x * self.scale + self.translation
         return x
     
-    def train_epoch(self, optimizer, dataset, batch_size, device): 
+    def train_epoch(self, optimizer, dataset, batch_size, device, use_actuations=False): 
         # no dataloader because it was way slower
         self.train()
         total_loss = 0.
@@ -164,10 +177,10 @@ class Model(th.nn.Module):
         for batch_inx in range(num_batches):
             start_inx = batch_inx * batch_size
             end_inx = (batch_inx + 1) * batch_size
-            inputs, mask, target = dataset[start_inx:end_inx]
+            inputs, mask, target, actuations = dataset[start_inx:end_inx]
             prediction = self(inputs)
             jacobian = self.construct_jacobian(inputs)
-            loss = self.compute_loss(prediction, target, mask, jacobian)
+            loss = self.compute_loss(prediction, target, mask, jacobian, actuations)
 
             optimizer.zero_grad()
             loss.backward()
@@ -188,28 +201,41 @@ class Model(th.nn.Module):
             result = self(data)
         return result
     
-    def compute_loss(self, prediction, target, mask, jacobian):
+    def compute_loss(self, prediction, target, mask, jacobian, actuations):
         where_skull = mask == 1
         where_jaw = mask == 2
         where_surface = mask == 3
+        if actuations is None:
+            surface_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+            if where_surface.sum() > 0:
+                surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
+            surface_loss *= self.w_surface
+            
+            skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+            if where_skull.sum() > 0:
+                skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
+            skull_loss *= self.w_skull
 
-        surface_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_surface.sum() > 0:
-            surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
-        surface_loss *= self.w_surface
-        
-        skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_skull.sum() > 0:
-            skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
-        skull_loss *= self.w_skull
+            jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+            if where_jaw.sum() > 2:  # with two or less points the loss can become nan
+                jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
+            jaw_loss *= self.w_jaw
 
-        jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_jaw.sum() > 2:  # with two or less points the loss can become nan
-            jaw_loss = procrustes_loss(prediction[where_jaw], target[where_jaw])
-        jaw_loss *= self.w_jaw
+            tissue_loss = deformation_loss(jacobian) * self.w_tissue
 
-        tissue_loss = deformation_loss(jacobian) * self.w_tissue
+            loss = surface_loss + skull_loss + jaw_loss + tissue_loss
+        else:
+            skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+            if where_skull.sum() > 0:
+                skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
+            skull_loss *= self.w_skull
 
-        loss = surface_loss + skull_loss + jaw_loss + tissue_loss
+            jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+            if where_jaw.sum() > 0:  # with two or less points the loss can become nan
+                jaw_loss = th.nn.functional.l1_loss(prediction[where_jaw], target[where_jaw])
+            jaw_loss *= self.w_jaw
+
+            e_loss = energy_loss(jacobian, actuations)
+            loss = skull_loss + jaw_loss + e_loss * 0.05
         return loss
 

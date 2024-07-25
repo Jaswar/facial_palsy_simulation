@@ -54,7 +54,7 @@ class MeshDataset(th.utils.data.Dataset):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, 
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path=None,
                  generate_prestrain=False, use_prestrain=False, prestrain_model=None, 
                  num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
@@ -63,6 +63,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.skull_path = skull_path
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
+        self.actuations_path = actuations_path
 
         self.generate_prestrain = generate_prestrain
         self.use_prestrain = use_prestrain
@@ -74,7 +75,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.tol = tol
         self.stol = stol
         self.device = device
-        
+
+        self.actuations = None
+
         # the different parts of the face
         self.skull_mask = None
         self.jaw_mask = None
@@ -120,6 +123,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
         self.targets = th.tensor(self.deformed_nodes).to(device).float()
+        self.actuations = th.tensor(self.actuations).to(device).float()
 
     def visualize(self):
         numpy_nodes = self.nodes.cpu().numpy()
@@ -162,6 +166,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.deformed_surface = pv.read(self.deformed_path)
         self.deformed_surface = self.deformed_surface.clean()
         self.deformed_surface = pv.PolyData(self.deformed_surface)
+
+        if self.actuations_path is not None:
+            self.actuations = np.load(self.actuations_path)
     
     def __normalize(self):
         self.minv = np.min(self.nodes)
@@ -234,7 +241,10 @@ class TetmeshDataset(th.utils.data.Dataset):
         if th.is_tensor(idx):
             idx = idx.tolist()
 
-        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
+        if self.actuations is None:
+            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], None
+        else:
+            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.actuations[idx]
 
 
 if __name__ == '__main__':

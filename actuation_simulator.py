@@ -6,6 +6,7 @@ from model import Model
 from dataset import TetmeshDataset
 import time
 
+
 def visualize_displacements(model, dataset, pass_all=False):
     if pass_all:
         mask = th.zeros(dataset.nodes.shape[0], dtype=th.bool)
@@ -37,17 +38,18 @@ def visualize_displacements(model, dataset, pass_all=False):
     plot.show()
 
 
+
 def main():
     tetmesh_path = 'data/tetmesh'
     jaw_path = 'data/jaw.obj'
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
-    checkpoint_path = 'checkpoints/best_model.pth'
+    actuations_path = 'data/actuations_per_vertex.npy'
+    checkpoint_path = 'checkpoints/best_model_simulator.pth'
     train = True
 
-    generate_prestrain = False  # the dataset will generate the symmetric face, instead of targeting the expression
-    use_prestrain = False  # whether to use the INR for the symmetric face
+    use_prestrain = True  # whether to use the INR for the symmetric face
     prestrain_model_path = 'checkpoints/best_model_prestrain.pth'  # path to the INR for the symmetric/prestrained face
 
     epochs = 10000
@@ -70,20 +72,20 @@ def main():
         prestrain_model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(prestrain_model_path))
-    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, 
-                             generate_prestrain=generate_prestrain, use_prestrain=use_prestrain, prestrain_model=prestrain_model,
+    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path,
+                             use_prestrain=use_prestrain, prestrain_model=prestrain_model,
                              num_samples=num_samples, device=device)
     dataset.visualize()
     
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if generate_prestrain else 10.)
+    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model = th.compile(model)
     model.to(device)
-    
+
     if benchmark:
         epochs = 100
 
     if train:
-        optimizer = th.optim.Adam(model.parameters(), lr=0.000845248320219007)
+        optimizer = th.optim.Adam(model.parameters(), lr=0.00845248320219007)
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         if benchmark:  # initialization that compiles some of the methods, must be done here to exclude from benchmark
             model.train_epoch(optimizer, dataset, batch_size, dataset.device)
@@ -108,5 +110,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

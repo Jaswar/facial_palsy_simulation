@@ -9,7 +9,8 @@ import json
 def get_actuations(deformation_gradient):
     U, s, V = th.svd(deformation_gradient)
     s = th.diag_embed(s)
-    return V, s
+    A = th.bmm(V, th.bmm(s, V.permute(0, 2, 1)))
+    return A
 
 
 def visualize_actuations(nodes, elements, actuations):
@@ -44,6 +45,7 @@ def main(args):
     barries = nodes[elements]
     barries = np.mean(barries, axis=1)
     barries = th.tensor(barries).float()
+    nodes = th.tensor(nodes).float()
 
     model = Model(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
@@ -56,18 +58,19 @@ def main(args):
     model.load_state_dict(th.load(model_path))
 
     with th.no_grad():
-        deformation_gradient = model.construct_jacobian(barries)
+        deformation_gradient = model.construct_jacobian(nodes)
     
-    V, s = get_actuations(deformation_gradient)
+    actuations = get_actuations(deformation_gradient).cpu().numpy()
+    np.save('data/actuations_per_vertex.npy', actuations)
     # visualize_actuations(nodes, elements, actuations)
-    np.save(V_path, V.cpu().numpy())
-    np.save(s_path, s.cpu().numpy())
+    # np.save(V_path, V.cpu().numpy())
+    # np.save(s_path, s.cpu().numpy())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017_from_prestrain.pth')
-    parser.add_argument('--V_path', type=str, default='data/V_017_from_prestrain.npy')
-    parser.add_argument('--s_path', type=str, default='data/s_017_from_prestrain.npy')
+    parser.add_argument('--V_path', type=str, default='data/V_017_per_vertex.npy')
+    parser.add_argument('--s_path', type=str, default='data/s_017_per_vertex.npy')
     parser.add_argument('--config_path', type=str, default='checkpoints/best_config.json')
     args = parser.parse_args()
     main(args)
