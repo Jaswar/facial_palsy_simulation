@@ -82,6 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained_path', type=str)
 
     parser.add_argument('--use_prestrain', action='store_true')
+    parser.add_argument('--prestrain_config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--prestrain_model_path', type=str)
 
     parser.add_argument('--train', action='store_true')
