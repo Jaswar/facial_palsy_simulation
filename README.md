@@ -22,9 +22,12 @@ Next, the actuations have to be generated and symmetrised. This is done with the
 python predict_actuations.py --tetmesh_path=data/tetmesh \
     --tetmesh_contour_path=data/tetmesh_contour.obj \
     --tetmesh_reflected_deformed_path=data/tetmesh_contour_ref_deformed.obj \
-    --model_path=
+    --model_path=checkpoints/best_model_017.pth \
+    --config_path=checkpoints/best_config.json \
+    --out_actuations_path=data/act_sym_017_per_vertex.npy
 ```
 
+Finally, to simulate the generated actuations, the following script must be run:
 
 ```bash
 python actuation_simulator.py --tetmesh_path=data/tetmesh \

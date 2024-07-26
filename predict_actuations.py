@@ -68,14 +68,7 @@ def flip_actuations(V, s, flipped_points, mappped_indices):
 
 
 def main(args):
-    tetmesh_path = 'data/tetmesh'
-    model_path = args.model_path
-    config_path = args.config_path
-    tetmesh_contour_path = 'data/tetmesh_contour.obj'
-    tetmesh_reflected_deformed_path = 'data/tetmesh_contour_ref_deformed.obj'
-    out_actuations_path = 'data/act_sym_017_per_vertex.npy'
-
-    with open(config_path, 'r') as f:
+    with open(args.config_path, 'r') as f:
         config = json.load(f)
 
     nodes, elements, _ = Tetmesh.read_tetgen_file(args.tetmesh_path)
@@ -118,6 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--tetmesh_reflected_deformed_path', type=str, required=True)
     parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, required=True)
+    parser.add_argument('--out_actuations_path', type=str, required=True)
 
     args = parser.parse_args()
     main(args)

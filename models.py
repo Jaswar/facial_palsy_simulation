@@ -170,7 +170,7 @@ class BaseModel(th.nn.Module):
         self.train()
         total_loss = 0.
         total_samples = 0
-        num_batches = len(dataset) // batch_size
+        num_batches = max(len(dataset) // batch_size, 1)
         dataset.prepare_for_epoch()
         for batch_inx in range(num_batches):
             start_inx = batch_inx * batch_size
