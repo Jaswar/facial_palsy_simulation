@@ -49,6 +49,11 @@ def main():
     checkpoint_path = 'checkpoints/best_model_simulator.pth'
     train = True
 
+    # it is possible to use the deformation model as the starting point for this network
+    # the model converges a bit faster, but it requires the deformation model to have the same architecture
+    use_pretrained = False
+    pretrained_path = 'checkpoints/best_model_017.pth'
+
     use_prestrain = False  # whether to use the INR for the symmetric face
     prestrain_model_path = 'checkpoints/best_model_prestrain.pth'  # path to the INR for the symmetric/prestrained face
 
@@ -80,6 +85,9 @@ def main():
     model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model = th.compile(model)
     model.to(device)
+
+    if use_pretrained:
+        model.load_state_dict(th.load(pretrained_path))
 
     if benchmark:
         epochs = 100

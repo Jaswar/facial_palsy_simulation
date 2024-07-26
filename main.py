@@ -43,8 +43,8 @@ def main():
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
-    checkpoint_path = 'checkpoints/best_model.pth'
-    train = True
+    checkpoint_path = 'checkpoints/best_model_017.pth'
+    train = False
 
     generate_prestrain = False  # the dataset will generate the symmetric face, instead of targeting the expression
     use_prestrain = False  # whether to use the INR for the symmetric face

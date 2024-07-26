@@ -123,7 +123,8 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
         self.targets = th.tensor(self.deformed_nodes).to(device).float()
-        self.actuations = th.tensor(self.actuations).to(device).float()
+        if self.actuations is not None:
+            self.actuations = th.tensor(self.actuations).to(device).float()
 
     def visualize(self):
         numpy_nodes = self.nodes.cpu().numpy()
@@ -146,6 +147,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         plot.add_points(tissue_nodes, color='green', point_size=7.)
         plot.subplot(0, 1)
         plot.add_mesh(def_grid, color='lightgray')
+        plot.link_views()
         plot.show()
 
     def __read(self):
@@ -179,7 +181,8 @@ class TetmeshDataset(th.utils.data.Dataset):
 
     def __detect_skull(self):
         self.skull_mask = self.__detect(self.skull, self.tol)
-        self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
+        if self.actuations_path is not None:
+            self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
         self.skull_nodes = self.nodes[self.skull_mask]
 
     def __detect_jaw(self):
