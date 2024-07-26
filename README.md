@@ -40,6 +40,20 @@ python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --train
 ```
 
+### Random search
+
+`random_search.py` performs a random search over specified hyperparameters. The following command will launch it:
+
+```bash
+python random_search.py --tetmesh_path=data/tetmesh \
+    --jaw_path=data/jaw.obj \
+    --skull_path=data/skull.obj \
+    --neutral_path=data/tetmesh_face_surface.obj \
+    --deformed_path=data/ground_truths/deformed_surface_017.obj \
+    --model_path=checkpoints/best_model_rs.pth \
+    --config_path=checkpoints/best_config_rs.json
+```
+
 ### UV baseline
 
 The UV baseline is built in the `uv_baseline.py` script. To run the baseline, a face surface with the UV mesh must be extracted (can be done with Blender). Then, the script can be run with:

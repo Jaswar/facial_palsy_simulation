@@ -1,6 +1,6 @@
 import torch as th
 import numpy as np
-from model import Model
+from models import INRModel
 from dataset import TetmeshDataset
 import time
 import copy
@@ -17,7 +17,7 @@ def sample_configuration():
         'fourier_features': np.random.randint(5, 20),
         'optimizer': np.random.choice(['adam', 'rmsprop']),
         'w_surface': 10 ** np.random.uniform(-1., 1.),
-        'w_tissue': 10 ** np.random.uniform(-3., -1.),
+        'w_deformation': 10 ** np.random.uniform(-3., -1.),
         'w_jaw': 10 ** np.random.uniform(-1., 1.),
         'w_skull': 10 ** np.random.uniform(-1., 1.),
         # 'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
@@ -25,12 +25,12 @@ def sample_configuration():
     return config
 
 
-def run_configuration(config, dataset, budget=10 * 60):
-    model = Model(num_hidden_layers=config['num_hidden_layers'], 
+def run_configuration(config, dataset, budget):
+    model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
                   fourier_features=config['fourier_features'],
                   w_surface=config['w_surface'],
-                  w_tissue=config['w_tissue'],
+                  w_deformation=config['w_deformation'],
                   w_jaw=config['w_jaw'],
                   w_skull=config['w_skull'])
     model = th.compile(model)
@@ -52,7 +52,7 @@ def run_configuration(config, dataset, budget=10 * 60):
     epoch = 0
     while time.time() - start_time < budget:
         epoch += 1
-        train_loss = model.train_epoch(optimizer, dataset, config['batch_size'], dataset.device)
+        train_loss = model.train_epoch(optimizer, dataset, config['batch_size'])
         if train_loss < best_loss:
             best_loss = train_loss
             best_model = copy.deepcopy(model)
@@ -66,12 +66,12 @@ def run_configuration(config, dataset, budget=10 * 60):
     return best_model, best_loss
 
 
-def random_search(dataset, model_path, config_path):
+def random_search(dataset, model_path, config_path, budget):
     best_loss = float('inf')
     while True:
         config = sample_configuration()
         print(f'Running configuration: {config}')
-        model, loss = run_configuration(config, dataset)
+        model, loss = run_configuration(config, dataset, budget)
         if loss < best_loss:
             print(f'New best loss: {loss}')
             best_loss = loss
@@ -81,28 +81,25 @@ def random_search(dataset, model_path, config_path):
 
 
 def main(args):
-    tetmesh_path = 'data/tetmesh'
-    jaw_path = 'data/jaw.obj'
-    skull_path = 'data/skull.obj'
-    neutral_path = 'data/tetmesh_face_surface.obj'
-    deformed_path = 'data/ground_truths/deformed_surface_017.obj'
-
-    model_path = args.model_path
-    config_path = args.config_path
-
     if th.cuda.is_available():
         device = 'cuda'
     else:
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, device=device)
-    random_search(dataset, model_path, config_path)
+    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, device=device)
+    random_search(dataset, args.model_path, args.config_path, args.budget)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='checkpoints/best_model_rs.pth')
-    parser.add_argument('--config_path', type=str, default='checkpoints/best_config_rs.json')
+    parser.add_argument('--tetmesh_path', type=str, required=True)
+    parser.add_argument('--jaw_path', type=str, required=True)
+    parser.add_argument('--skull_path', type=str, required=True)
+    parser.add_argument('--neutral_path', type=str, required=True)
+    parser.add_argument('--deformed_path', type=str, required=True)
+    parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--config_path', type=str, required=True)
+    parser.add_argument('--budget', type=int, default=60 * 10)  # 10 minutes
     args = parser.parse_args()
     main(args)
