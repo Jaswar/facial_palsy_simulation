@@ -237,6 +237,7 @@ class INRModel(BaseModel):
         loss = surface_loss + skull_loss + jaw_loss + def_loss
         return loss
 
+
 class SimulatorModel(BaseModel):
 
     def __init__(self, input_size=3, output_size=3, 
@@ -264,6 +265,6 @@ class SimulatorModel(BaseModel):
         jaw_loss *= self.w_jaw
 
         e_loss = energy_loss(jacobian, actuations) * self.w_energy
-        
+
         loss = skull_loss + jaw_loss + e_loss
         return loss

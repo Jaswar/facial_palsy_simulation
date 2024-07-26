@@ -5,38 +5,7 @@ import numpy as np
 from models import SimulatorModel, INRModel
 from dataset import TetmeshDataset
 import time
-
-
-def visualize_displacements(model, dataset, pass_all=False):
-    if pass_all:
-        mask = th.zeros(dataset.nodes.shape[0], dtype=th.bool)
-        mask[dataset.healthy_indices] = True
-        flipped_vertices = dataset.nodes.clone()
-        flipped_vertices[~mask, 0] = dataset.midpoint - flipped_vertices[~mask, 0] + dataset.midpoint
-        predicted_vertices = model.predict(flipped_vertices).cpu().numpy()
-        predicted_vertices[~mask, 0] = dataset.midpoint - predicted_vertices[~mask, 0] + dataset.midpoint
-    else:
-        predicted_vertices = dataset.deformed_nodes.copy()
-        indices = np.ones(dataset.nodes.shape[0], dtype=bool)
-        predicted_vertices[indices] = model.predict(dataset.nodes).cpu().numpy()[indices]
-
-    cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
-    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
-
-    neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes.cpu().numpy())
-    ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, dataset.deformed_nodes)
-    predicted_grid = pv.UnstructuredGrid(cells, celltypes, predicted_vertices)
-    
-    plot = pv.Plotter(shape=(1, 3))
-    plot.subplot(0, 0)
-    plot.add_mesh(neutral_grid.copy(), color='yellow')
-    plot.subplot(0, 1)
-    plot.add_mesh(ground_truth_grid.copy(), color='yellow')
-    plot.subplot(0, 2)
-    plot.add_mesh(predicted_grid.copy(), color='yellow')
-    plot.link_views()
-    plot.show()
-
+from common import visualize_displacements, train_model
 
 
 def main():
@@ -97,24 +66,11 @@ def main():
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         if benchmark:  # initialization that compiles some of the methods, must be done here to exclude from benchmark
             model.train_epoch(optimizer, dataset, batch_size)
-        min_loss = float('inf')
-        start = time.time()
-        for epoch in range(1, epochs + 1):
-            train_loss = model.train_epoch(optimizer, dataset, batch_size)
-            if train_loss < min_loss and not benchmark:
-                min_loss = train_loss
-                th.save(model.state_dict(), checkpoint_path)
-            lr_scheduler.step()
-
-            if epoch % print_interval == 0:
-                print(f'Epoch {epoch}/{epochs} - Loss: {train_loss:.8f} - LR: {lr_scheduler.get_last_lr()[0]:.8f}')
-            if epoch % vis_interval == 0 and not benchmark:
-                visualize_displacements(model, dataset)
-        print(f'Training took: {time.time() - start:.2f}s')
+        train_model(model, dataset, optimizer, lr_scheduler, batch_size, epochs, print_interval, vis_interval, benchmark, checkpoint_path)
 
     if not benchmark:
         model.load_state_dict(th.load(checkpoint_path))
-        visualize_displacements(model, dataset, pass_all=False)
+        visualize_displacements(model, dataset)
 
 if __name__ == '__main__':
     main()
