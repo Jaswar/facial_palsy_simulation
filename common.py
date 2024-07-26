@@ -44,4 +44,8 @@ def train_model(model, dataset,
     print(f'Training took: {time.time() - start:.2f}s')
 
 
+def get_optimizer(config, model):
+    return {'adam': th.optim.Adam,
+            'rmsprop': th.optim.RMSprop,
+            'sgd': th.optim.SGD}[config['optimizer']](model.parameters(), lr=config['learning_rate'])
 

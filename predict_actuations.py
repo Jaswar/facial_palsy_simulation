@@ -68,12 +68,17 @@ def flip_actuations(V, s, flipped_points, mappped_indices):
 
 
 def main(args):
+    with open(args.config_path, 'r') as f:
+        config = json.load(f)
+
     nodes, elements, _ = Tetmesh.read_tetgen_file(args.tetmesh_path)
     minv = np.min(nodes)
     maxv = np.max(nodes)
     nodes = (nodes - minv) / (maxv - minv)
 
-    model = INRModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+    model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
+                     hidden_size=config['hidden_size'], 
+                     fourier_features=config['fourier_features'])
     model = th.compile(model)
     model.load_state_dict(th.load(args.model_path))
 
@@ -105,6 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--tetmesh_contour_path', type=str, required=True)
     parser.add_argument('--tetmesh_reflected_deformed_path', type=str, required=True)
     parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--out_actuations_path', type=str, required=True)
 
     args = parser.parse_args()

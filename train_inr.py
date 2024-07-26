@@ -4,11 +4,14 @@ import torch as th
 import numpy as np
 from models import INRModel
 from dataset import TetmeshDataset
-import time
-from common import visualize_displacements, train_model
+from common import visualize_displacements, train_model, get_optimizer
+import json
 
 
 def main(args):
+    with open(args.config_path, 'r') as f:
+        config = json.load(f)
+
     assert not args.benchmark or args.train, 'Cannot benchmark without training'
     
     if th.cuda.is_available():
@@ -19,7 +22,11 @@ def main(args):
 
     prestrain_model = None
     if args.use_prestrain:
-        prestrain_model = INRModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+        with open(args.prestrain_config_path, 'r') as f:
+            prestrain_config = json.load(f)
+        prestrain_model = INRModel(num_hidden_layers=prestrain_config['num_hidden_layers'], 
+                                   hidden_size=prestrain_config['hidden_size'], 
+                                   fourier_features=prestrain_config['fourier_features'])
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(args.prestrain_model_path))
     dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, 
@@ -27,7 +34,13 @@ def main(args):
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     
-    model = INRModel(num_hidden_layers=9, hidden_size=64, fourier_features=8, w_surface=40. if args.generate_prestrain else 10.)
+    model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
+                     hidden_size=config['hidden_size'], 
+                     fourier_features=config['fourier_features'], 
+                     w_surface=40. if args.generate_prestrain else config['w_surface'],
+                     w_jaw=config['w_jaw'],
+                     w_skull=config['w_skull'],
+                     w_deformation=config['w_deformation'])
     model = th.compile(model)
     model.to(device)
     
@@ -35,12 +48,12 @@ def main(args):
         args.epochs = 100
 
     if args.train:
-        optimizer = th.optim.Adam(model.parameters(), lr=0.000845248320219007)
-        lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-8)
+        optimizer = get_optimizer(config, model)
+        lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=config['min_lr'])
         if args.benchmark:  # initialization that compiles some of the methods, must be done here to exclude from benchmark
-            model.train_epoch(optimizer, dataset, args.batch_size)
+            model.train_epoch(optimizer, dataset, config['batch_size'])
         train_model(model, dataset, 
-                    optimizer, lr_scheduler, args.batch_size, args.epochs, 
+                    optimizer, lr_scheduler, config['batch_size'], args.epochs, 
                     args.print_interval, args.vis_interval, args.benchmark, args.checkpoint_path)
 
     if not args.benchmark:
@@ -54,15 +67,16 @@ if __name__ == '__main__':
     parser.add_argument('--skull_path', type=str, required=True)
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--deformed_path', type=str, required=True)
+    parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
 
     parser.add_argument('--generate_prestrain', action='store_true')
     parser.add_argument('--use_prestrain', action='store_true')
     parser.add_argument('--prestrain_model_path', type=str)
+    parser.add_argument('--prestrain_config_path', type=str, default='configs/config_inr.json')
 
     parser.add_argument('--train', action='store_true')
     parser.add_argument('--epochs', type=int, default=10000)
-    parser.add_argument('--batch_size', type=int, default=4096)
     parser.add_argument('--num_samples', type=int, default=10000)
     parser.add_argument('--print_interval', type=int, default=1)
     parser.add_argument('--vis_interval', type=int, default=1000)

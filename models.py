@@ -76,8 +76,8 @@ def deformation_loss(jacobian):
     Z = Z.repeat(U.shape[0], 1, 1)
     Z[:, -1, -1] *= th.sign(th.det(U.bmm(V.permute(0,2,1))))
 
-    # construct R = VZU^T
-    R = V.bmm(Z.bmm(U.permute(0,2,1)))
+    # construct R = UZV^T
+    R = U.bmm(Z.bmm(V.permute(0,2,1)))
 
     # compute the Frobenius norm of the difference between the Jacobian and the R matrix
     return th.linalg.matrix_norm(jacobian - R).mean()

@@ -198,7 +198,7 @@ class TetmeshDataset(th.utils.data.Dataset):
             self.epoch_actuations = self.epoch_actuations[idx]  
 
     def __len__(self):
-        return self.num_samples
+        return min(self.num_samples, self.nodes.shape[0])
     
     def __getitem__(self, idx):
         if th.is_tensor(idx):
