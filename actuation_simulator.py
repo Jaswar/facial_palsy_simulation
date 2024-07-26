@@ -2,7 +2,7 @@ import argparse
 import pyvista as pv
 import torch as th
 import numpy as np
-from model import Model
+from models import SimulatorModel, INRModel
 from dataset import TetmeshDataset
 import time
 
@@ -46,8 +46,8 @@ def main():
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
     actuations_path = 'data/act_sym_017_per_vertex.npy'
-    checkpoint_path = 'checkpoints/best_model_simulator.pth'
-    train = True
+    checkpoint_path = 'checkpoints/best_model_simulator_017.pth'
+    train = False
 
     # it is possible to use the deformation model as the starting point for this network
     # the model converges a bit faster, but it requires the deformation model to have the same architecture
@@ -74,7 +74,7 @@ def main():
 
     prestrain_model = None
     if use_prestrain:
-        prestrain_model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+        prestrain_model = INRModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(prestrain_model_path))
     dataset = TetmeshDataset(tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path,
@@ -82,7 +82,7 @@ def main():
                              num_samples=num_samples, device=device)
     dataset.visualize()
     
-    model = Model(num_hidden_layers=9, hidden_size=64, fourier_features=8)
+    model = SimulatorModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model = th.compile(model)
     model.to(device)
 
@@ -96,11 +96,11 @@ def main():
         optimizer = th.optim.Adam(model.parameters(), lr=0.00845248320219007)
         lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-8)
         if benchmark:  # initialization that compiles some of the methods, must be done here to exclude from benchmark
-            model.train_epoch(optimizer, dataset, batch_size, dataset.device)
+            model.train_epoch(optimizer, dataset, batch_size)
         min_loss = float('inf')
         start = time.time()
         for epoch in range(1, epochs + 1):
-            train_loss = model.train_epoch(optimizer, dataset, batch_size, dataset.device)
+            train_loss = model.train_epoch(optimizer, dataset, batch_size)
             if train_loss < min_loss and not benchmark:
                 min_loss = train_loss
                 th.save(model.state_dict(), checkpoint_path)

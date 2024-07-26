@@ -1,7 +1,7 @@
 import torch as th
 import numpy as np
 from tetmesh import Tetmesh
-from model import Model
+from models import INRModel
 import pyvista as pv
 import argparse
 import json
@@ -83,7 +83,7 @@ def main(args):
     maxv = np.max(nodes)
     nodes = (nodes - minv) / (maxv - minv)
 
-    model = Model(num_hidden_layers=config['num_hidden_layers'], 
+    model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
                   hidden_size=config['hidden_size'],
                   fourier_features=config['fourier_features'])
     model = th.compile(model)
