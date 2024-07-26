@@ -10,7 +10,7 @@ def get_actuations(deformation_gradient):
     U, s, V = th.svd(deformation_gradient)
     s = th.diag_embed(s)
     A = th.bmm(V, th.bmm(s, V.permute(0, 2, 1)))
-    return A
+    return V, s, A
 
 
 def visualize_actuations(nodes, elements, actuations):
@@ -60,11 +60,10 @@ def main(args):
     with th.no_grad():
         deformation_gradient = model.construct_jacobian(nodes)
     
-    actuations = get_actuations(deformation_gradient)
-    np.save('data/actuations_017_per_vertex.npy', actuations.cpu().numpy())
-    visualize_actuations(nodes.cpu().numpy(), elements, actuations)
-    # np.save(V_path, V.cpu().numpy())
-    # np.save(s_path, s.cpu().numpy())
+    V, s, A = get_actuations(deformation_gradient)
+    visualize_actuations(nodes.cpu().numpy(), elements, A)
+    np.save(V_path, V.cpu().numpy())
+    np.save(s_path, s.cpu().numpy())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

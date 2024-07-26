@@ -45,7 +45,7 @@ def main():
     skull_path = 'data/skull.obj'
     neutral_path = 'data/tetmesh_face_surface.obj'
     deformed_path = 'data/ground_truths/deformed_surface_017.obj'  # 17 for figure 37 from the thesis
-    actuations_path = 'data/actuations_017_per_vertex.npy'
+    actuations_path = 'data/act_sym_017_per_vertex.npy'
     checkpoint_path = 'checkpoints/best_model_simulator.pth'
     train = True
 

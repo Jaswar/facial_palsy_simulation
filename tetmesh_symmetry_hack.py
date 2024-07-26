@@ -11,9 +11,9 @@ import argparse
 import torch as th
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--V_path', type=str, default='data/V_017_from_prestrain.npy')
-parser.add_argument('--s_path', type=str, default='data/s_017_from_prestrain.npy')
-parser.add_argument('--act_out_fn', type=str, default='act_sym_017_dirflip_from_prestrain.npy')
+parser.add_argument('--V_path', type=str, default='data/V_017_per_vertex.npy')
+parser.add_argument('--s_path', type=str, default='data/s_017_per_vertex.npy')
+parser.add_argument('--act_out_fn', type=str, default='act_sym_017_per_vertex.npy')
 args = parser.parse_args()
 
 
@@ -91,8 +91,7 @@ pv_eles = np.hstack([np.full((eles.shape[0], 1), 4, dtype=int), eles])
 celltypes = np.full(pv_eles.shape[0], fill_value=10, dtype=int)
 grid = pv.UnstructuredGrid(pv_eles, celltypes, nodes)
 
-ele_pts = nodes[eles]
-barries = ele_pts.mean(axis=1)
+barries = nodes.copy()
 flipped_points = barries[:, 0] > -21
 new_pt = bary_transform(barries)
 
