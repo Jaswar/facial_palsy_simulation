@@ -43,6 +43,7 @@ def main(args):
                      w_deformation=config['w_deformation'])
     model = th.compile(model)
     model.to(device)
+    model.load_state_dict(th.load('checkpoints/prior.pth'))
     
     if args.benchmark:
         args.epochs = 100
@@ -59,7 +60,7 @@ def main(args):
     if not args.benchmark:
         model.load_state_dict(th.load(args.checkpoint_path))
         visualize_displacements(model, dataset)
-        if args.jaw_save_path is not None:
+        if args.predicted_jaw_path is not None:
             jaw_nodes = dataset.nodes[dataset.jaw_mask]
             predicted_jaw = model.predict(jaw_nodes).cpu().numpy()
             predicted_jaw = predicted_jaw * (dataset.maxv - dataset.minv) + dataset.minv
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--prestrain_config_path', type=str, default='configs/config_inr.json')
 
     parser.add_argument('--train', action='store_true')
-    parser.add_argument('--epochs', type=int, default=10000)
+    parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--num_samples', type=int, default=10000)
     parser.add_argument('--print_interval', type=int, default=1)
     parser.add_argument('--vis_interval', type=int, default=1000)

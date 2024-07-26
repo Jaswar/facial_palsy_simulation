@@ -6,20 +6,22 @@ import time
 import copy
 import json
 import argparse
+from common import get_optimizer
 
 
 def sample_configuration():
     config = {
-        'num_hidden_layers': np.random.randint(3, 12),
-        'hidden_size': 2 ** np.random.randint(3, 10),
+        'num_hidden_layers': 9, #np.random.randint(3, 12),
+        'hidden_size': 64, # 2 ** np.random.randint(3, 10),
         'learning_rate': 10 ** np.random.uniform(-6, -2),
+        'min_lr': 10 ** np.random.uniform(-8, -4),
         'batch_size': 2 ** np.random.randint(10, 14),
-        'fourier_features': np.random.randint(5, 20),
-        'optimizer': np.random.choice(['adam', 'rmsprop']),
-        'w_surface': 10 ** np.random.uniform(-1., 1.),
-        'w_deformation': 10 ** np.random.uniform(-3., -1.),
-        'w_jaw': 10 ** np.random.uniform(-1., 1.),
-        'w_skull': 10 ** np.random.uniform(-1., 1.),
+        'fourier_features': 8, # np.random.randint(5, 20),
+        'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
+        'w_surface': 10.0, # 10 ** np.random.uniform(-1., 1.),
+        'w_deformation': 0.02, #10 ** np.random.uniform(-3., -1.),
+        'w_jaw': 1.0, # 10 ** np.random.uniform(-1., 1.),
+        'w_skull': 2.0 # 10 ** np.random.uniform(-1., 1.),
         # 'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
     }
     return config
@@ -35,17 +37,13 @@ def run_configuration(config, dataset, budget):
                   w_skull=config['w_skull'])
     model = th.compile(model)
     model.to(dataset.device)
-    # get the optimizer
-    # considered putting objects in sample_configuration, but they do not serialize
-    optimizers = {
-        'adam': th.optim.Adam,
-        'sgd': th.optim.SGD,
-        'rmsprop': th.optim.RMSprop,
-    }
-    optimizer = optimizers[config['optimizer']](model.parameters(), lr=config['learning_rate'])
-    lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=budget, eta_min=1e-8)
+    optimizer = get_optimizer(config, model)
+    config['min_lr'] = min(config['min_lr'], config['learning_rate'] / 2)
+    lr_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=budget, eta_min=config['min_lr'])
     start_time = time.time()
     last_lr_step = start_time
+
+    model.load_state_dict(th.load('checkpoints/prior.pth'))
 
     best_loss = float('inf')
     best_model = None

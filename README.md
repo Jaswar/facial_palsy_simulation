@@ -13,7 +13,7 @@ python train_inr.py --tetmesh_path=data/tetmesh \
     --neutral_path=data/tetmesh_face_surface.obj \
     --deformed_path=data/ground_truths/deformed_surface_017.obj \
     --checkpoint_path=checkpoints/best_model.pth \
-    --predicted_jaw_path=data/predicted_jaw.npy
+    --predicted_jaw_path=data/predicted_jaw.npy \
     --train
 ```
 
@@ -36,7 +36,7 @@ python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --neutral_path=data/tetmesh_face_surface.obj \
     --deformed_path=data/ground_truths/deformed_surface_017.obj \
     --actuations_path=data/act_sym_017_per_vertex.npy \
-    --predicted_jaw_path=data/predicted_jaw.npy
+    --predicted_jaw_path=data/predicted_jaw.npy \
     --checkpoint_path=checkpoints/best_model_simulator.pth \
     --train
 ```
