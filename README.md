@@ -23,7 +23,6 @@ python predict_actuations.py --tetmesh_path=data/tetmesh \
     --tetmesh_contour_path=data/tetmesh_contour.obj \
     --tetmesh_reflected_deformed_path=data/tetmesh_contour_ref_deformed.obj \
     --model_path=checkpoints/best_model_017.pth \
-    --config_path=checkpoints/best_config.json \
     --out_actuations_path=data/act_sym_017_per_vertex.npy
 ```
 
