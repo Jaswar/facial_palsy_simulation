@@ -27,7 +27,7 @@ def main(args):
                                    fourier_features=prestrain_config['fourier_features'])
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(args.prestrain_model_path))
-    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, args.actuations_path,
+    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, args.actuations_path, args.predicted_jaw_path,
                              use_prestrain=args.use_prestrain, prestrain_model=prestrain_model,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
@@ -73,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--deformed_path', type=str, required=True)
     parser.add_argument('--actuations_path', type=str, required=True)
+    parser.add_argument('--predicted_jaw_path', type=str, default=None)
     parser.add_argument('--config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
 

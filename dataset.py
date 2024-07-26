@@ -9,7 +9,7 @@ from scipy.spatial import KDTree
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path=None,
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path=None, predicted_jaw_path=None,
                  generate_prestrain=False, use_prestrain=False, prestrain_model=None, 
                  num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
@@ -19,6 +19,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
         self.actuations_path = actuations_path
+        self.predicted_jaw_path = predicted_jaw_path
 
         self.generate_prestrain = generate_prestrain
         self.use_prestrain = use_prestrain
@@ -45,13 +46,15 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.minv = None
         self.maxv = None
 
-        # nodes from the original tetmesh with surface points deformed (the rest is unchanged)
+        # nodes from the original tetmesh with surface points deformed
+        # optionally also the jaw nodes are replaced with prediction if predicted_jaw_path is provided
         self.deformed_nodes = None
 
         # num_samples sampled nodes from the tetmesh, reshuffled at each epoch in the prepare_for_epoch method
         self.epoch_nodes = None
         self.epoch_mask = None
         self.epoch_targets = None
+        self.epoch_actuations = None  # set only if actuations_path is provided, to be used in the simulation model
         
         self.__read()
 
@@ -63,6 +66,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         assert self.surface_mask.sum() == self.deformed_surface.points.shape[0]
         self.__detect_tissue()
         self.__combine_masks()
+
+        if self.predicted_jaw_path is not None:
+            self.__replace_jaw_with_prediction()
 
         self.__normalize()
 
@@ -138,11 +144,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.skull_mask = self.__detect(self.skull, self.tol)
         if self.actuations_path is not None:
             self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
-        self.skull_nodes = self.nodes[self.skull_mask]
 
     def __detect_jaw(self):
         self.jaw_mask = self.__detect(self.jaw, self.tol)
-        self.jaw_nodes = self.nodes[self.jaw_mask]
 
     def __detect_surface(self):
         kdtree = KDTree(self.nodes)
@@ -156,7 +160,6 @@ class TetmeshDataset(th.utils.data.Dataset):
     def __detect_tissue(self):
         self.tissue_mask = np.logical_and(np.logical_not(self.skull_mask), np.logical_not(self.jaw_mask))
         self.tissue_mask = np.logical_and(self.tissue_mask, np.logical_not(self.surface_mask))
-        self.tissue_nodes = self.nodes[self.tissue_mask]
 
     def __detect(self, mesh, tol):
         ds, _, _ = igl.point_mesh_squared_distance(self.nodes, mesh.points, mesh.regular_faces)
@@ -171,6 +174,10 @@ class TetmeshDataset(th.utils.data.Dataset):
 
     def __replace_with_prestrain(self):
         self.nodes = self.prestrain_model.predict(th.tensor(self.nodes).float()).numpy()
+
+    def __replace_jaw_with_prediction(self):
+        predicted_jaw = np.load(self.predicted_jaw_path)
+        self.deformed_nodes[self.jaw_mask] = predicted_jaw
 
     def __symmetrize_surface(self):
         healthy_surface_idx = np.logical_and(self.surface_mask, self.healthy_indices)

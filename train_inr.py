@@ -59,6 +59,12 @@ def main(args):
     if not args.benchmark:
         model.load_state_dict(th.load(args.checkpoint_path))
         visualize_displacements(model, dataset)
+        if args.jaw_save_path is not None:
+            jaw_nodes = dataset.nodes[dataset.jaw_mask]
+            predicted_jaw = model.predict(jaw_nodes).cpu().numpy()
+            predicted_jaw = predicted_jaw * (dataset.maxv - dataset.minv) + dataset.minv
+            np.save(args.predicted_jaw_path, predicted_jaw)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -69,6 +75,7 @@ if __name__ == '__main__':
     parser.add_argument('--deformed_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
+    parser.add_argument('--predicted_jaw_path', type=str, default=None)
 
     parser.add_argument('--generate_prestrain', action='store_true')
     parser.add_argument('--use_prestrain', action='store_true')
