@@ -255,12 +255,3 @@ class TetmeshDataset(th.utils.data.Dataset):
             return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.epoch_actuations[idx]
 
 
-if __name__ == '__main__':
-    dataset = TetmeshDataset('data/tetmesh', 
-                             'data/jaw.obj', 
-                             'data/skull.obj', 
-                             'data/tetmesh_face_surface.obj', 
-                             'data/ground_truths/deformed_surface_001.obj')
-    dataset.visualize()
-
-
