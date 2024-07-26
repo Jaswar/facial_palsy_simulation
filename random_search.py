@@ -68,16 +68,16 @@ def run_configuration(config, dataset, budget=10 * 60):
 
 def random_search(dataset, model_path, config_path):
     best_loss = float('inf')
-    # while True:
-    config = sample_configuration()
-    print(f'Running configuration: {config}')
-    model, loss = run_configuration(config, dataset)
-    if loss < best_loss:
-        print(f'New best loss: {loss}')
-        best_loss = loss
-        th.save(model.state_dict(), model_path)
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
+    while True:
+        config = sample_configuration()
+        print(f'Running configuration: {config}')
+        model, loss = run_configuration(config, dataset)
+        if loss < best_loss:
+            print(f'New best loss: {loss}')
+            best_loss = loss
+            th.save(model.state_dict(), model_path)
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=4)
 
 
 def main(args):
