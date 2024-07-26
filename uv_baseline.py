@@ -7,6 +7,7 @@ from scipy.spatial import KDTree
 import pyvista as pv
 from scipy.ndimage import laplace
 from obj_parser import ObjParser
+import argparse
 
 
 class MeshWithUV(object):
@@ -101,7 +102,7 @@ class MeshWithUV(object):
             channel_grid = self.laplace_grid[:, :, d]
             updated_indices = np.where(channel_grid == 0.)
             for i in range(self.iterations):
-                print(f'\rRunning channel {d}, Laplace iteration {i + 1}/{self.iterations}', end='')
+                print(f'\rRunning channel {d + 1}/{self.dim}, Laplace iteration {i + 1}/{self.iterations}', end='')
                 channel_grid[updated_indices] = channel_grid[updated_indices] + self.dt * self.D * laplace(channel_grid)[updated_indices]
             print()
             self.laplace_grid[:, :, d] = channel_grid
@@ -186,12 +187,21 @@ class MeshWithUV(object):
 if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
 
-    mesh = MeshWithUV('data/face_surface_with_uv3.obj', 
-                      'data/ground_truths/deformed_surface_023.obj', 
-                      flip_x=False, 
-                      laplace=True, 
-                      iterations=1500, 
-                      resolution=1000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', type=str, required=True)
+    parser.add_argument('--deformed_path', type=str, required=True)
+    parser.add_argument('--flip_x', action='store_true')
+    parser.add_argument('--laplace', action='store_true')
+    parser.add_argument('--iterations', type=int, default=1500)
+    parser.add_argument('--resolution', type=int, default=1000)
+    args = parser.parse_args()
+
+    mesh = MeshWithUV(args.path, 
+                      args.deformed_path, 
+                      flip_x=args.flip_x, 
+                      laplace=args.laplace, 
+                      iterations=args.iterations, 
+                      resolution=args.resolution)
     
     mesh.baseline_transform()
 

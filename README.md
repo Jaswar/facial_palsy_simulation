@@ -39,3 +39,14 @@ python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --checkpoint_path=checkpoints/best_model_simulator.pth \
     --train
 ```
+
+### UV baseline
+
+The UV baseline is built in the `uv_baseline.py` script. To run the baseline, a face surface with the UV mesh must be extracted (can be done with Blender). Then, the script can be run with:
+
+```bash
+python uv_baseline.py --path=data/face_surface_with_uv3.obj \
+    --deformed_path=data/ground_truths/deformed_surface_023.obj \
+    --laplace
+```
+
