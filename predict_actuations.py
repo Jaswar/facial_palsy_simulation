@@ -78,7 +78,7 @@ def main(args):
     with open(config_path, 'r') as f:
         config = json.load(f)
 
-    nodes, elements, _ = Tetmesh.read_tetgen_file(tetmesh_path)
+    nodes, elements, _ = Tetmesh.read_tetgen_file(args.tetmesh_path)
     minv = np.min(nodes)
     maxv = np.max(nodes)
     nodes = (nodes - minv) / (maxv - minv)
@@ -87,7 +87,7 @@ def main(args):
                   hidden_size=config['hidden_size'],
                   fourier_features=config['fourier_features'])
     model = th.compile(model)
-    model.load_state_dict(th.load(model_path))
+    model.load_state_dict(th.load(args.model_path))
 
     with th.no_grad():
         deformation_gradient = model.construct_jacobian(th.tensor(nodes).float())
@@ -95,8 +95,8 @@ def main(args):
     V, s, A = get_actuations(deformation_gradient)
     V, s, A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
-    surface = pv.PolyData(tetmesh_contour_path)
-    deformed_surface = pv.PolyData(tetmesh_reflected_deformed_path)
+    surface = pv.PolyData(args.tetmesh_contour_path)
+    deformed_surface = pv.PolyData(args.tetmesh_reflected_deformed_path)
     kdtree = KDTree(surface.points)
 
     nodes = nodes * (maxv - minv) + minv  # denormalize
@@ -108,12 +108,16 @@ def main(args):
     A_sym = flip_actuations(V, s, flipped_points, mapped_indices)
 
     visualize_actuations(nodes, elements, A, A_sym)
-    np.save(out_actuations_path, A_sym)
+    np.save(args.out_actuations_path, A_sym)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='checkpoints/best_model_017.pth')
-    parser.add_argument('--config_path', type=str, default='checkpoints/best_config.json')
+    parser.add_argument('--tetmesh_path', type=str, required=True)
+    parser.add_argument('--tetmesh_contour_path', type=str, required=True)
+    parser.add_argument('--tetmesh_reflected_deformed_path', type=str, required=True)
+    parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--config_path', type=str, required=True)
+
     args = parser.parse_args()
     main(args)
