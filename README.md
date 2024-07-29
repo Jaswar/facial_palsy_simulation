@@ -55,6 +55,17 @@ python random_search.py --tetmesh_path=data/tetmesh \
     --config_path=checkpoints/best_config_rs.json
 ```
 
+The script `run_full_random_search.sh` runs the random search for both the INR and the simulator. The results can be visualized qualitatively with the `visualize_full_random_search.py` script, which can be run with:
+
+```bash
+python visualize_full_random_search.py --tetmesh_path=data/tetmesh \
+    --jaw_path=data/jaw.obj \
+    --skull_path=data/skull.obj \
+    --neutral_path=data/tetmesh_face_surface.obj \
+    --deformed_path=data/ground_truths/deformed_surface_017.obj \
+    --checkpoints_path=checkpoints/random_search
+```
+
 ### UV baseline
 
 The UV baseline is built in the `uv_baseline.py` script. To run the baseline, a face surface with the UV mesh must be extracted (can be done with Blender). Then, the script can be run with:

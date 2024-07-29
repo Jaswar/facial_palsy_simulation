@@ -100,7 +100,8 @@ def main(args):
     _, mapped_indices = kdtree.query(new_points[flipped_points])
     A_sym = flip_actuations(V, s, flipped_points, mapped_indices)
 
-    visualize_actuations(nodes, elements, A, A_sym)
+    if not args.silent:
+        visualize_actuations(nodes, elements, A, A_sym)
     np.save(args.out_actuations_path, A_sym)
 
 
@@ -112,6 +113,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--out_actuations_path', type=str, required=True)
+    parser.add_argument('--silent', action='store_true')
 
     args = parser.parse_args()
     main(args)

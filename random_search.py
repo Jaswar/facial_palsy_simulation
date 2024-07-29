@@ -14,28 +14,28 @@ def sample_configuration(simulator):
         config = {
             'num_hidden_layers': 9, #np.random.randint(3, 12),
             'hidden_size': 64, # 2 ** np.random.randint(3, 10),
-            'learning_rate': 10 ** np.random.uniform(-6, -2),
-            'min_lr': 10 ** np.random.uniform(-8, -4),
-            'batch_size': 2 ** np.random.randint(10, 14),
+            'learning_rate': 0.0005752928352406232, # 10 ** np.random.uniform(-6, -2),
+            'min_lr': 6.079299789748567e-08, # 10 ** np.random.uniform(-8, -4),
+            'batch_size': 2048, # 2 ** np.random.randint(10, 14),
             'fourier_features': 8, # np.random.randint(5, 20),
-            'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
-            'w_jaw': 1.0, # 10 ** np.random.uniform(-1., 1.),
-            'w_skull': 2.0, # 10 ** np.random.uniform(-1., 1.),
-            'w_energy': 0.5,
+            'optimizer': 'adam', # np.random.choice(['adam', 'rmsprop', 'sgd']),
+            'w_jaw': 10 ** np.random.uniform(-1., 1.),
+            'w_skull': 10 ** np.random.uniform(-1., 1.),
+            'w_energy': 10 ** np.random.uniform(-1., 1.),
         }
     else:
         config = {
             'num_hidden_layers': 9, #np.random.randint(3, 12),
             'hidden_size': 64, # 2 ** np.random.randint(3, 10),
-            'learning_rate': 10 ** np.random.uniform(-6, -2),
-            'min_lr': 10 ** np.random.uniform(-8, -4),
-            'batch_size': 2 ** np.random.randint(10, 14),
+            'learning_rate': 0.00045505766167674896, # 10 ** np.random.uniform(-6, -2),
+            'min_lr': 4.185126169465809e-08, # 10 ** np.random.uniform(-8, -4),
+            'batch_size': 4096, # 2 ** np.random.randint(10, 14),
             'fourier_features': 8, # np.random.randint(5, 20),
-            'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
-            'w_surface': 10.0, # 10 ** np.random.uniform(-1., 1.),
-            'w_deformation': 0.02, #10 ** np.random.uniform(-3., -1.),
-            'w_jaw': 1.0, # 10 ** np.random.uniform(-1., 1.),
-            'w_skull': 2.0, # 10 ** np.random.uniform(-1., 1.),
+            'optimizer': 'adam', # np.random.choice(['adam', 'rmsprop', 'sgd']),
+            'w_surface': 10 ** np.random.uniform(-1., 1.),
+            'w_deformation': 10 ** np.random.uniform(-3., -1.),
+            'w_jaw': 10 ** np.random.uniform(-1., 1.),
+            'w_skull': 10 ** np.random.uniform(-1., 1.),
         }
     return config
 
