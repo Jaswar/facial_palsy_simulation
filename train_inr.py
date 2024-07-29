@@ -37,7 +37,7 @@ def main(args):
     model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
                      hidden_size=config['hidden_size'], 
                      fourier_features=config['fourier_features'], 
-                     w_surface=40. if args.generate_prestrain else config['w_surface'],
+                     w_surface=config['w_surface'],
                      w_jaw=config['w_jaw'],
                      w_skull=config['w_skull'],
                      w_deformation=config['w_deformation'])
