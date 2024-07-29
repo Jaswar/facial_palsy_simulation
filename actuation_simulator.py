@@ -78,7 +78,6 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path', type=str, required=True)
 
     parser.add_argument('--use_pretrained', action='store_true')
-    parser.add_argument('--pretrained_config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--pretrained_path', type=str)
 
     parser.add_argument('--use_prestrain', action='store_true')

@@ -43,7 +43,14 @@ def main(args):
                      w_deformation=config['w_deformation'])
     model = th.compile(model)
     model.to(device)
-    model.load_state_dict(th.load('checkpoints/prior.pth'))
+
+
+    if args.use_pretrained:
+        try:        
+            model.load_state_dict(th.load(args.pretrained_path))
+        except KeyError as ex:
+            print(f'Pretrained INR model architecture must match the simulation model architecture. Error: {ex}')
+            return
     
     if args.benchmark:
         args.epochs = 100
@@ -82,6 +89,9 @@ if __name__ == '__main__':
     parser.add_argument('--use_prestrain', action='store_true')
     parser.add_argument('--prestrain_model_path', type=str)
     parser.add_argument('--prestrain_config_path', type=str, default='configs/config_inr.json')
+
+    parser.add_argument('--use_pretrained', action='store_true')
+    parser.add_argument('--pretrained_path', type=str)
 
     parser.add_argument('--train', action='store_true')
     parser.add_argument('--epochs', type=int, default=300)
