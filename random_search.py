@@ -1,6 +1,6 @@
 import torch as th
 import numpy as np
-from models import INRModel
+from models import INRModel, SimulatorModel
 from dataset import TetmeshDataset
 import time
 import copy
@@ -18,23 +18,30 @@ def sample_configuration():
         'batch_size': 2 ** np.random.randint(10, 14),
         'fourier_features': 8, # np.random.randint(5, 20),
         'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
-        'w_surface': 10.0, # 10 ** np.random.uniform(-1., 1.),
-        'w_deformation': 0.02, #10 ** np.random.uniform(-3., -1.),
+        # 'w_surface': 10.0, # 10 ** np.random.uniform(-1., 1.),
+        # 'w_deformation': 0.02, #10 ** np.random.uniform(-3., -1.),
         'w_jaw': 1.0, # 10 ** np.random.uniform(-1., 1.),
-        'w_skull': 2.0 # 10 ** np.random.uniform(-1., 1.),
+        'w_skull': 2.0, # 10 ** np.random.uniform(-1., 1.),
+        'w_energy': 0.5,
         # 'use_sigmoid_output': np.random.choice(['true', 'false']),  # booleans are not json serializable
     }
     return config
 
 
 def run_configuration(config, dataset, budget):
-    model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
-                  hidden_size=config['hidden_size'],
-                  fourier_features=config['fourier_features'],
-                  w_surface=config['w_surface'],
-                  w_deformation=config['w_deformation'],
-                  w_jaw=config['w_jaw'],
-                  w_skull=config['w_skull'])
+    # model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
+    #               hidden_size=config['hidden_size'],
+    #               fourier_features=config['fourier_features'],
+    #               w_surface=config['w_surface'],
+    #               w_deformation=config['w_deformation'],
+    #               w_jaw=config['w_jaw'],
+    #               w_skull=config['w_skull'])
+    model = SimulatorModel(num_hidden_layers=config['num_hidden_layers'],
+                           hidden_size=config['hidden_size'],
+                           fourier_features=config['fourier_features'],
+                           w_jaw=config['w_jaw'],
+                           w_skull=config['w_skull'],
+                           w_energy=config['w_energy'])
     model = th.compile(model)
     model.to(dataset.device)
     optimizer = get_optimizer(config, model)
@@ -85,7 +92,7 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, device=device)
+    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, actuations_path='data/act_sym_017_per_vertex.npy', device=device)
     random_search(dataset, args.model_path, args.config_path, args.budget)
 
 

@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--prestrain_model_path', type=str)
 
     parser.add_argument('--train', action='store_true')
-    parser.add_argument('--epochs', type=int, default=10000)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--num_samples', type=int, default=10000)
     parser.add_argument('--print_interval', type=int, default=1)
     parser.add_argument('--vis_interval', type=int, default=1000)
