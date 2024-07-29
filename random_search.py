@@ -32,7 +32,7 @@ def sample_configuration(simulator):
             'batch_size': 4096, # 2 ** np.random.randint(10, 14),
             'fourier_features': 8, # np.random.randint(5, 20),
             'optimizer': 'adam', # np.random.choice(['adam', 'rmsprop', 'sgd']),
-            'w_surface': 10 ** np.random.uniform(-1., 1.),
+            'w_surface': 10 ** np.random.uniform(-1., 2.),
             'w_deformation': 10 ** np.random.uniform(-3., -1.),
             'w_jaw': 10 ** np.random.uniform(-1., 1.),
             'w_skull': 10 ** np.random.uniform(-1., 1.),

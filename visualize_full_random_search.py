@@ -20,6 +20,7 @@ def main(args):
 
     for file in os.listdir(args.checkpoints_path):
         if file.endswith('.pth') and 'sim' in file:
+            print(f'Visualizing {file}')
             model = SimulatorModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
             model = th.compile(model)
             model.load_state_dict(th.load(os.path.join(args.checkpoints_path, file)))
