@@ -13,12 +13,12 @@ def sample_configuration(simulator):
     if simulator:
         config = {
             'num_hidden_layers': 9, #np.random.randint(3, 12),
-            'hidden_size': 64, # 2 ** np.random.randint(3, 10),
-            'learning_rate': 0.0005752928352406232, # 10 ** np.random.uniform(-6, -2),
-            'min_lr': 6.079299789748567e-08, # 10 ** np.random.uniform(-8, -4),
-            'batch_size': 2048, # 2 ** np.random.randint(10, 14),
-            'fourier_features': 8, # np.random.randint(5, 20),
-            'optimizer': 'adam', # np.random.choice(['adam', 'rmsprop', 'sgd']),
+            'hidden_size': 64, #2 ** np.random.randint(3, 10),
+            'learning_rate': 10 ** np.random.uniform(-6, -2),
+            'min_lr': 10 ** np.random.uniform(-8, -4),
+            'batch_size': 2 ** np.random.randint(10, 14),
+            'fourier_features': 8, #np.random.randint(5, 20),
+            'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
             'w_jaw': 10 ** np.random.uniform(-1., 1.),
             'w_skull': 10 ** np.random.uniform(-1., 1.),
             'w_energy': 10 ** np.random.uniform(-1., 1.),
@@ -26,12 +26,12 @@ def sample_configuration(simulator):
     else:
         config = {
             'num_hidden_layers': 9, #np.random.randint(3, 12),
-            'hidden_size': 64, # 2 ** np.random.randint(3, 10),
-            'learning_rate': 0.00045505766167674896, # 10 ** np.random.uniform(-6, -2),
-            'min_lr': 4.185126169465809e-08, # 10 ** np.random.uniform(-8, -4),
-            'batch_size': 4096, # 2 ** np.random.randint(10, 14),
-            'fourier_features': 8, # np.random.randint(5, 20),
-            'optimizer': 'adam', # np.random.choice(['adam', 'rmsprop', 'sgd']),
+            'hidden_size': 64, #2 ** np.random.randint(3, 10),
+            'learning_rate': 10 ** np.random.uniform(-6, -2),
+            'min_lr': 10 ** np.random.uniform(-8, -4),
+            'batch_size': 2 ** np.random.randint(10, 14),
+            'fourier_features': 8, #np.random.randint(5, 20),
+            'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
             'w_surface': 10 ** np.random.uniform(-1., 2.),
             'w_deformation': 10 ** np.random.uniform(-3., -1.),
             'w_jaw': 10 ** np.random.uniform(-1., 1.),
@@ -85,7 +85,7 @@ def run_configuration(config, dataset, budget, simulator):
     return best_model, best_loss
 
 
-def random_search(dataset, model_path, config_path, budget, simulator, num_runs):
+def random_search(dataset, model_path, config_path, predicted_jaw_path, budget, simulator, num_runs):
     best_loss = float('inf')
     run = 0
     while run < num_runs or num_runs == -1:
@@ -98,6 +98,11 @@ def random_search(dataset, model_path, config_path, budget, simulator, num_runs)
             th.save(model.state_dict(), model_path)
             with open(config_path, 'w') as f:
                 json.dump(config, f, indent=4)
+        if predicted_jaw_path is not None and not simulator:
+            jaw_nodes = dataset.nodes[dataset.jaw_mask]
+            predicted_jaw = model.predict(jaw_nodes).cpu().numpy()
+            predicted_jaw = predicted_jaw * (dataset.maxv - dataset.minv) + dataset.minv
+            np.save(predicted_jaw_path, predicted_jaw)
         run += 1
 
 
@@ -110,8 +115,9 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, actuations_path=args.actuations_path, device=device)
-    random_search(dataset, args.model_path, args.config_path, args.budget, args.simulator, args.num_runs)
+    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, 
+                             actuations_path=args.actuations_path, predicted_jaw_path=args.predicted_jaw_path if args.simulator else None, device=device)
+    random_search(dataset, args.model_path, args.config_path, args.predicted_jaw_path, args.budget, args.simulator, args.num_runs)
 
 
 if __name__ == '__main__':
@@ -125,6 +131,8 @@ if __name__ == '__main__':
     parser.add_argument('--config_path', type=str, required=True)
     parser.add_argument('--budget', type=int, default=60 * 10)  # 10 minutes
     parser.add_argument('--num_runs', type=int, default=-1)
+
+    parser.add_argument('--predicted_jaw_path', type=str, default=None)
 
     parser.add_argument('--simulator', action='store_true')
     parser.add_argument('--actuations_path', type=str, default=None)
