@@ -30,7 +30,7 @@ def main():
 
     kdtree = KDTree(nodes)
     d, _ = kdtree.query(high_res_surface.points)
-    in_bounds = d < 0.01
+    in_bounds = d < 0.02
 
     inputs = th.tensor(high_res_surface.points[in_bounds]).float().to(device)
     outputs = model.predict(inputs).cpu().numpy()
