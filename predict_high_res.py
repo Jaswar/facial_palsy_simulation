@@ -25,7 +25,7 @@ def main():
 
     model = SimulatorModel(num_hidden_layers=9, hidden_size=64, fourier_features=8)
     model = th.compile(model)
-    model.load_state_dict(th.load('checkpoints/best_model_simulator_017_fast.pth'))
+    model.load_state_dict(th.load('checkpoints/best_model_simulator_001_fast_with_jaw.pth'))
     model.to(device)
 
     kdtree = KDTree(nodes)

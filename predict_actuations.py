@@ -16,10 +16,8 @@ def get_actuations(deformation_gradient):
 
 
 def flip_actuations(V, s, flipped_points, mappped_indices):
-    V_sym = V.copy()
-    s_sym = s.copy()
-    V_sym[flipped_points] = V[mappped_indices]
-    s_sym[flipped_points] = s[mappped_indices]
+    V_sym = V[mappped_indices]
+    s_sym = s[mappped_indices]
     V_sym[flipped_points, 0, :] *= -1
     A_sym = V_sym @ s_sym @ np.transpose(V_sym, [0, 2, 1])
     return A_sym
@@ -28,12 +26,13 @@ def flip_actuations(V, s, flipped_points, mappped_indices):
 class ActuationPredictor(object):
 
     def __init__(self, model_path, config_path, 
-                 tetmesh_path, tetmesh_contour_path, tetmesh_reflected_deformed_path):
+                 tetmesh_path, tetmesh_contour_path, tetmesh_reflected_deformed_path, device='cpu'):
         self.model_path = model_path
         self.config_path = config_path
         self.tetmesh_path = tetmesh_path
         self.tetmesh_contour_path = tetmesh_contour_path
         self.tetmesh_reflected_deformed_path = tetmesh_reflected_deformed_path
+        self.device = device
 
         self.__load()
 
@@ -41,29 +40,20 @@ class ActuationPredictor(object):
         self.nodes_kdtree = KDTree(self.nodes)
 
 
-    def predict(self, points, normalize=False):
-        if not th.is_tensor(points):
-            points = th.tensor(points).float()
+    def predict(self, points, denormalize=False):
+        if th.is_tensor(points):
+            points = points.cpu().numpy()
 
-        if normalize:
-            points = (points - self.minv) / (self.maxv - self.minv)
-
-        with th.no_grad():
-            deformation_gradient = self.model.construct_jacobian(points)
-        V, s, A = get_actuations(deformation_gradient)
-        V, s, A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
-
-        if normalize:
+        if denormalize:
             points = points * (self.maxv - self.minv) + self.minv
 
-        points = points.cpu().numpy()
         flipped_points = points[:, 0] > np.mean(self.nodes[:, 0])
-        new_points = self.__bary_transform(points)
+        new_points = points.copy()
+        new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
 
-        kdtree = KDTree(self.nodes)
-        _, mapped_indices = kdtree.query(new_points[flipped_points])
-        A_sym = flip_actuations(V, s, flipped_points, mapped_indices)
-        return A, A_sym
+        _, mapped_indices = self.nodes_kdtree.query(new_points)
+        A_sym = flip_actuations(self.V, self.s, flipped_points, mapped_indices)
+        return self.A, A_sym
 
 
     def __load(self):
@@ -79,9 +69,17 @@ class ActuationPredictor(object):
                               fourier_features=config['fourier_features'])
         self.model = th.compile(self.model)
         self.model.load_state_dict(th.load(self.model_path))
+        self.model.to(self.device)
 
         self.surface = pv.PolyData(self.tetmesh_contour_path)
         self.deformed_surface = pv.PolyData(self.tetmesh_reflected_deformed_path)
+
+        vertices = th.tensor(self.nodes, device=self.device, dtype=th.float32)
+        vertices = (vertices - self.minv) / (self.maxv - self.minv)
+        with th.no_grad():
+            deformation_gradient = self.model.construct_jacobian(vertices)
+        V, s, A = get_actuations(deformation_gradient)
+        self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
 
     def __bary_transform(self, points):
@@ -104,16 +102,21 @@ class ActuationPredictor(object):
         return new_pos
 
 
-    def visualize(self, A, A_sym):
+    def visualize(self, A, A_sym, points=None):
         _, s, _ = th.svd(th.tensor(A).float())
         actuations = th.sum(s, dim=1)
         _, s, _ = th.svd(th.tensor(A_sym).float())
         actuations_sym = th.sum(s, dim=1)
 
-        cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
-        celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+        if points is None:
+            cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
+            celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+            neutral_grid = pv.UnstructuredGrid(cells, celltypes, self.nodes)
+        else:
+            cells = np.hstack([np.full((points.shape[0], 1), 1, dtype=int), np.arange(points.shape[0])[:, None]])
+            celltypes = np.full(cells.shape[0], fill_value=pv.CellType.VERTEX, dtype=int)
+            neutral_grid = pv.UnstructuredGrid(cells, celltypes, points)
 
-        neutral_grid = pv.UnstructuredGrid(cells, celltypes, self.nodes)
         neutral_grid['actuations'] = actuations
         neutral_grid['actuations_sym'] = actuations_sym
 
@@ -133,7 +136,8 @@ def main(args):
                                    args.tetmesh_contour_path, 
                                    args.tetmesh_reflected_deformed_path)
 
-    A, A_sym = predictor.predict(predictor.nodes, normalize=True)
+    points = predictor.nodes.copy()
+    A, A_sym = predictor.predict(points)
 
     if not args.silent:
         predictor.visualize(A, A_sym)

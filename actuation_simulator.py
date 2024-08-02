@@ -3,6 +3,7 @@ import torch as th
 from models import SimulatorModel, INRModel
 from dataset import TetmeshDataset
 from common import visualize_displacements, train_model, get_optimizer
+from predict_actuations import ActuationPredictor
 import json
 
 
@@ -27,8 +28,10 @@ def main(args):
                                    fourier_features=prestrain_config['fourier_features'])
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(args.prestrain_model_path))
+
+    actuation_predictor = ActuationPredictor('checkpoints/best_model_017_new.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', device)
     dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, args.actuations_path, args.predicted_jaw_path,
-                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model,
+                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model, actuation_predictor=actuation_predictor,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     
