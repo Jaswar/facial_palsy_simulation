@@ -7,6 +7,50 @@ import igl
 from scipy.spatial import KDTree
 
 
+# volume of the tetrahedron is 1/6th of the volume of the parallelepiped
+# see https://en.wikipedia.org/wiki/Parallelepiped for the original volume formula
+def get_tet_volume(nodes, elements):
+    v0 = nodes[elements[:, 0]]
+    v1 = nodes[elements[:, 1]]
+    v2 = nodes[elements[:, 2]]
+    v3 = nodes[elements[:, 3]]
+    return np.abs(np.einsum('ij,ij->i', v0 - v3, np.cross(v1 - v3, v2 - v3))) / 6
+
+
+def compute_probabilities(nodes, elements):
+    volumes = get_tet_volume(nodes, elements)
+    probabilities = volumes / np.sum(volumes)
+    return probabilities
+
+
+# based on https://www.researchgate.net/publication/2461576_Generating_Random_Points_in_a_Tetrahedron
+def sample_from_tet(nodes, sampled_elements):
+    vertices = nodes[sampled_elements]
+    assert vertices.shape[1] == 4, 'Only tetrahedra are supported'
+    assert vertices.shape[2] == 3, 'Only 3D points are supported'
+
+    s, t, u = th.hsplit(th.rand(vertices.shape[0], 3).to(nodes.device), 3)
+
+    cond1 = s + t > 1
+    s[cond1], t[cond1], u[cond1] = 1 - s[cond1], 1 - t[cond1], u[cond1]
+
+    cond2 = s + t + u > 1
+    cond3 = t + u > 1
+
+    cond4 = th.logical_and(cond2, cond3)
+    s[cond4], t[cond4], u[cond4] = s[cond4], 1 - u[cond4], 1 - s[cond4] - t[cond4]
+
+    cond5 = th.logical_and(cond2, th.logical_not(cond3))
+    s[cond5], t[cond5], u[cond5] = 1 - t[cond5] - u[cond5], t[cond5], s[cond5] + t[cond5] + u[cond5] - 1
+
+    a = vertices[:, 1, :] - vertices[:, 0, :]
+    b = vertices[:, 2, :] - vertices[:, 0, :]
+    c = vertices[:, 3, :] - vertices[:, 0, :]
+
+    sampled_points = vertices[:, 0, :] + s * a + t * b + u * c
+    return sampled_points
+
+
 class TetmeshDataset(th.utils.data.Dataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path=None, predicted_jaw_path=None,
@@ -113,6 +157,7 @@ class TetmeshDataset(th.utils.data.Dataset):
 
     def __read(self):
         self.nodes, self.elements, _ = Tetmesh.read_tetgen_file(self.tetmesh_path)
+        self.probabilities = compute_probabilities(self.nodes, self.elements)
 
         self.jaw = pv.read(self.jaw_path)
         self.jaw = self.jaw.clean()
@@ -190,6 +235,15 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.deformed_nodes[unhealthy_surface_idx] = self.deformed_nodes[healthy_surface_idx][indices]
         self.deformed_nodes[healthy_surface_idx, 0] = self.midpoint - self.deformed_nodes[healthy_surface_idx, 0] + self.midpoint
 
+    def __sample_nodes(self, num_nodes):
+        if th.is_tensor(num_nodes):
+            num_nodes = num_nodes.cpu().item()
+
+        idx = np.random.choice(self.elements.shape[0], num_nodes, p=self.probabilities)
+        sampled_elements = self.elements[idx]
+        sampled_points = sample_from_tet(self.nodes, sampled_elements)
+        return sampled_points
+
     def prepare_for_epoch(self):
         self.epoch_nodes = self.nodes.clone()
         self.epoch_mask = self.mask.clone()
@@ -202,7 +256,10 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_mask = self.epoch_mask[idx]
         self.epoch_targets = self.epoch_targets[idx]  
         if self.actuations is not None:
-            self.epoch_actuations = self.epoch_actuations[idx]  
+            self.epoch_actuations = self.epoch_actuations[idx]
+
+        where_tissue = self.epoch_mask == 0
+        self.epoch_nodes[where_tissue] = self.__sample_nodes(where_tissue.sum())
 
     def __len__(self):
         return min(self.num_samples, self.nodes.shape[0])
