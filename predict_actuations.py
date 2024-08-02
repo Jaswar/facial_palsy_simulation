@@ -15,9 +15,9 @@ def get_actuations(deformation_gradient):
     return V, s, A
 
 
-def flip_actuations(V, s, flipped_points, mappped_indices):
-    V_sym = V[mappped_indices]
-    s_sym = s[mappped_indices]
+def flip_actuations(V, s, flipped_points):
+    V_sym = V.copy()
+    s_sym = s.copy()
     V_sym[flipped_points, 0, :] *= -1
     A_sym = V_sym @ s_sym @ np.transpose(V_sym, [0, 2, 1])
     return A_sym
@@ -51,8 +51,15 @@ class ActuationPredictor(object):
         new_points = points.copy()
         new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
 
-        _, mapped_indices = self.nodes_kdtree.query(new_points)
-        A_sym = flip_actuations(self.V, self.s, flipped_points, mapped_indices)
+        new_points = th.tensor(new_points).float().to(self.device)
+        new_points = (new_points - self.minv) / (self.maxv - self.minv)
+        with th.no_grad():
+            deformation_gradient = self.model.construct_jacobian(new_points)
+        V, s, A = get_actuations(deformation_gradient)
+        self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
+
+        # _, mapped_indices = self.nodes_kdtree.query(new_points)
+        A_sym = flip_actuations(self.V, self.s, flipped_points)
         return self.A, A_sym
 
 
@@ -73,14 +80,7 @@ class ActuationPredictor(object):
 
         self.surface = pv.PolyData(self.tetmesh_contour_path)
         self.deformed_surface = pv.PolyData(self.tetmesh_reflected_deformed_path)
-
-        vertices = th.tensor(self.nodes, device=self.device, dtype=th.float32)
-        vertices = (vertices - self.minv) / (self.maxv - self.minv)
-        with th.no_grad():
-            deformation_gradient = self.model.construct_jacobian(vertices)
-        V, s, A = get_actuations(deformation_gradient)
-        self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
-
+        
 
     def __bary_transform(self, points):
         if points.ndim == 1:
