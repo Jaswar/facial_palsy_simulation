@@ -31,7 +31,7 @@ def main(args):
 
     actuation_predictor = ActuationPredictor('checkpoints/best_model_017_new.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', device)
     dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, args.actuations_path, args.predicted_jaw_path,
-                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model, actuation_predictor=actuation_predictor,
+                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model, actuation_predictor=None,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     

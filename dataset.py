@@ -113,6 +113,10 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.__detect_tissue()
         self.__combine_masks()
 
+        new_nodes, _, _ = Tetmesh.read_tetgen_file('data/symmetric_tetmesh')
+        self.nodes = new_nodes
+        self.deformed_nodes[~self.surface_mask] = self.nodes[~self.surface_mask]
+
         if self.predicted_jaw_path is not None:
             self.__replace_jaw_with_prediction()
 
@@ -257,12 +261,14 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_nodes = self.epoch_nodes[idx]
         self.epoch_mask = self.epoch_mask[idx]
         self.epoch_targets = self.epoch_targets[idx]  
+        if self.actuations is not None:
+            self.epoch_actuations = self.epoch_actuations[idx]
 
-        where_tissue = self.epoch_mask == 0
-        self.epoch_nodes[where_tissue] = self.__sample_nodes(where_tissue.sum())
-        if self.actuation_predictor is not None:
-            A, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
-            self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
+        # where_tissue = self.epoch_mask == 0
+        # self.epoch_nodes[where_tissue] = self.__sample_nodes(where_tissue.sum())
+        # if self.actuation_predictor is not None:
+        #     A, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
+        #     self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
 
     def __len__(self):
         return min(self.num_samples, self.nodes.shape[0])
