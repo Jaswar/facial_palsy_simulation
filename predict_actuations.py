@@ -26,12 +26,14 @@ def flip_actuations(V, s, flipped_points):
 class ActuationPredictor(object):
 
     def __init__(self, model_path, config_path, 
-                 tetmesh_path, tetmesh_contour_path, tetmesh_reflected_deformed_path, device='cpu'):
+                 tetmesh_path, tetmesh_contour_path, tetmesh_reflected_deformed_path, 
+                 secondary_model_path=None, device='cpu'):
         self.model_path = model_path
         self.config_path = config_path
         self.tetmesh_path = tetmesh_path
         self.tetmesh_contour_path = tetmesh_contour_path
         self.tetmesh_reflected_deformed_path = tetmesh_reflected_deformed_path
+        self.secondary_model_path = secondary_model_path
         self.device = device
 
         self.__load()
@@ -48,18 +50,36 @@ class ActuationPredictor(object):
             points = points * (self.maxv - self.minv) + self.minv
 
         flipped_points = points[:, 0] > np.mean(self.nodes[:, 0])
-        new_points = points.copy()
-        new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
+        if self.secondary_model is None:
+            new_points = points.copy()
+            new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
 
-        new_points = th.tensor(new_points).float().to(self.device)
-        new_points = (new_points - self.minv) / (self.maxv - self.minv)
-        with th.no_grad():
-            deformation_gradient = self.model.construct_jacobian(new_points)
-        V, s, A = get_actuations(deformation_gradient)
-        self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
+            new_points = th.tensor(new_points).float().to(self.device)
+            new_points = (new_points - self.minv) / (self.maxv - self.minv)
+            with th.no_grad():
+                deformation_gradient = self.model.construct_jacobian(new_points)
+            V, s, A = get_actuations(deformation_gradient)
+            self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
-        # _, mapped_indices = self.nodes_kdtree.query(new_points)
-        A_sym = flip_actuations(self.V, self.s, flipped_points)
+            # _, mapped_indices = self.nodes_kdtree.query(new_points)
+            A_sym = flip_actuations(self.V, self.s, flipped_points)
+        else:
+            flipped_points = th.tensor(flipped_points).to(self.device)
+            points = th.tensor(points).float().to(self.device)
+            points = (points - self.minv) / (self.maxv - self.minv)
+            main_points = points[~flipped_points]
+            secondary_points = points[flipped_points]
+            self.A = th.zeros((points.shape[0], 3, 3), device=self.device)
+
+            with th.no_grad():
+                main_gradient = self.model.construct_jacobian(main_points)
+                secondary_gradient = self.secondary_model.construct_jacobian(secondary_points)
+            _, _, main_A = get_actuations(main_gradient)
+            _, _, secondary_A = get_actuations(secondary_gradient)
+
+            self.A[~flipped_points] = main_A
+            self.A[flipped_points] = secondary_A
+            A_sym = self.A.clone()
         return self.A, A_sym
 
 
@@ -77,6 +97,15 @@ class ActuationPredictor(object):
         self.model = th.compile(self.model)
         self.model.load_state_dict(th.load(self.model_path))
         self.model.to(self.device)
+
+        self.secondary_model = None
+        if self.secondary_model_path is not None:
+            self.secondary_model = INRModel(num_hidden_layers=config['num_hidden_layers'],
+                                            hidden_size=config['hidden_size'],
+                                            fourier_features=config['fourier_features'])
+            self.secondary_model = th.compile(self.secondary_model)
+            self.secondary_model.load_state_dict(th.load(self.secondary_model_path))
+            self.secondary_model.to(self.device)
 
         self.surface = pv.PolyData(self.tetmesh_contour_path)
         self.deformed_surface = pv.PolyData(self.tetmesh_reflected_deformed_path)
@@ -134,7 +163,8 @@ def main(args):
                                    args.config_path, 
                                    args.tetmesh_path, 
                                    args.tetmesh_contour_path, 
-                                   args.tetmesh_reflected_deformed_path)
+                                   args.tetmesh_reflected_deformed_path,
+                                   args.secondary_model_path)
 
     points = predictor.nodes.copy()
     A, A_sym = predictor.predict(points)
@@ -150,6 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('--tetmesh_contour_path', type=str, required=True)
     parser.add_argument('--tetmesh_reflected_deformed_path', type=str, required=True)
     parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--secondary_model_path', type=str, default=None)
     parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--out_actuations_path', type=str, required=True)
     parser.add_argument('--silent', action='store_true')

@@ -29,9 +29,10 @@ def main(args):
         prestrain_model = th.compile(prestrain_model)
         prestrain_model.load_state_dict(th.load(args.prestrain_model_path))
 
-    actuation_predictor = ActuationPredictor('checkpoints/best_model_017_new.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', device)
+    actuation_predictor = ActuationPredictor('checkpoints/best_model_017_pair_healthy.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', 
+                                             secondary_model_path='checkpoints/best_model_017_pair_unhealthy.pth', device=device)
     dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, args.actuations_path, args.predicted_jaw_path,
-                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model, actuation_predictor=None,
+                             use_prestrain=args.use_prestrain, prestrain_model=prestrain_model, actuation_predictor=actuation_predictor,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     

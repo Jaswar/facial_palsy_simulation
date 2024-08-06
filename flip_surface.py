@@ -25,37 +25,38 @@ def bary_transform(points, surface, deformed_surface, kdtree):
 
 
 def main():
-    tetmesh_path = 'data/tetmesh'
     neutral_surface_path = 'data/tetmesh_face_surface.obj'
     deformed_surface_path = 'data/ground_truths/deformed_surface_017.obj'
     contour_path = 'data/tetmesh_contour.obj'
     reflected_contour_path = 'data/tetmesh_contour_ref_deformed.obj'
-    deformed_out_path = 'data/symmetric_tetmesh'
+    deformed_out_path = 'data/deformed_out.obj'
 
-    nodes, elements, _ = Tetmesh.read_tetgen_file(tetmesh_path)
     neutral_surface = pv.PolyData(neutral_surface_path)
     deformed_surface = pv.PolyData(deformed_surface_path)
     contour = pv.PolyData(contour_path)
     reflected_contour = pv.PolyData(reflected_contour_path)
-    
+
     kdtree = KDTree(contour.points)
-    midpoint = np.mean(nodes[:, 0])
-    flipped_indices = nodes[:, 0] > midpoint
-    new_nodes = bary_transform(nodes, contour, reflected_contour, kdtree)
-    new_nodes[:, 0] = 2 * midpoint - new_nodes[:, 0]
-    nodes[flipped_indices] = new_nodes[flipped_indices]
+    _, indices_neutral = kdtree.query(neutral_surface.points)
 
-    cells = np.hstack([np.full((elements.shape[0], 1), 4, dtype=int), elements])
-    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
-    grid = pv.UnstructuredGrid(cells, celltypes, nodes)
+    kdtree = KDTree(neutral_surface.points)
+    _, indices = kdtree.query(reflected_contour.points)
+    
+    midpoint = np.mean(neutral_surface.points[:, 0])
+    deformed_surface.points[:, 0] = 2 * midpoint - deformed_surface.points[:, 0]
+    contour.points = deformed_surface.points[indices]
 
-    plot = pv.Plotter()
-    plot.add_mesh(grid, color='lightblue')
+    deformed_surface.points = contour.points[indices_neutral]
+
+    plot = pv.Plotter(shape=(1, 2))
+    plot.subplot(0, 0)
+    plot.add_mesh(contour, color='lightblue')
+    plot.subplot(0, 1)
+    plot.add_mesh(deformed_surface, color='lightblue')
     plot.link_views()
     plot.show()
 
-    pv.save_meshio(deformed_out_path + '.node', grid)
-    pv.save_meshio(deformed_out_path + '.ele', grid)
+    pv.save_meshio(deformed_out_path, deformed_surface)
 
 
 if __name__ == '__main__':
