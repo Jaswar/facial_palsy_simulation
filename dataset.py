@@ -53,9 +53,8 @@ def sample_from_tet(nodes, sampled_elements):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, actuations_path=None, predicted_jaw_path=None,
-                 actuation_predictor=None,
-                 generate_prestrain=False, use_prestrain=False, prestrain_model=None, 
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, predicted_jaw_path=None,
+                 actuations_path=None, actuation_predictor=None,
                  num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
@@ -66,12 +65,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.actuations_path = actuations_path
         self.actuation_predictor = actuation_predictor
         self.predicted_jaw_path = predicted_jaw_path
-
-        self.generate_prestrain = generate_prestrain
-        self.use_prestrain = use_prestrain
-        self.prestrain_model = prestrain_model
-        assert self.prestrain_model is not None or not self.use_prestrain, 'Prestrain model must be provided if use_prestrain is True'
-        assert not generate_prestrain or not use_prestrain, 'Cannot generate and use prestrain at the same time'
 
         self.num_samples = num_samples
         self.tol = tol
@@ -118,14 +111,8 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         self.__normalize()
 
-        if self.use_prestrain:
-            self.__replace_with_prestrain()
-
         self.midpoint = np.mean(self.nodes[:, 0])
         self.healthy_indices = self.nodes[:, 0] < self.midpoint
-
-        if self.generate_prestrain:
-            self.__symmetrize_surface()
 
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
@@ -219,23 +206,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.jaw_mask] = 2
         self.mask[self.surface_mask] = 3
 
-    def __replace_with_prestrain(self):
-        self.nodes = self.prestrain_model.predict(th.tensor(self.nodes).float()).numpy()
-
     def __replace_jaw_with_prediction(self):
         predicted_jaw = np.load(self.predicted_jaw_path)
         self.deformed_nodes[self.jaw_mask] = predicted_jaw
-
-    def __symmetrize_surface(self):
-        healthy_surface_idx = np.logical_and(self.surface_mask, self.healthy_indices)
-        unhealthy_surface_idx = np.logical_and(self.surface_mask, ~self.healthy_indices)
-
-        self.deformed_nodes = self.nodes.copy()
-        self.deformed_nodes[healthy_surface_idx, 0] = self.midpoint - self.deformed_nodes[healthy_surface_idx, 0] + self.midpoint
-        kdtree = KDTree(self.deformed_nodes[healthy_surface_idx])
-        _, indices = kdtree.query(self.deformed_nodes[unhealthy_surface_idx])
-        self.deformed_nodes[unhealthy_surface_idx] = self.deformed_nodes[healthy_surface_idx][indices]
-        self.deformed_nodes[healthy_surface_idx, 0] = self.midpoint - self.deformed_nodes[healthy_surface_idx, 0] + self.midpoint
 
     def __sample_nodes(self, num_nodes):
         if th.is_tensor(num_nodes):

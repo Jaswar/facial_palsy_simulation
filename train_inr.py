@@ -20,17 +20,7 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    prestrain_model = None
-    if args.use_prestrain:
-        with open(args.prestrain_config_path, 'r') as f:
-            prestrain_config = json.load(f)
-        prestrain_model = INRModel(num_hidden_layers=prestrain_config['num_hidden_layers'], 
-                                   hidden_size=prestrain_config['hidden_size'], 
-                                   fourier_features=prestrain_config['fourier_features'])
-        prestrain_model = th.compile(prestrain_model)
-        prestrain_model.load_state_dict(th.load(args.prestrain_model_path))
-    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, 
-                             generate_prestrain=args.generate_prestrain, use_prestrain=args.use_prestrain, prestrain_model=prestrain_model,
+    dataset = TetmeshDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     
@@ -43,7 +33,6 @@ def main(args):
                      w_deformation=config['w_deformation'])
     model = th.compile(model)
     model.to(device)
-
 
     if args.use_pretrained:
         try:        
@@ -67,11 +56,11 @@ def main(args):
     if not args.benchmark:
         model.load_state_dict(th.load(args.checkpoint_path))
         visualize_displacements(model, dataset)
-        if args.predicted_jaw_path is not None:
-            jaw_nodes = dataset.nodes[dataset.jaw_mask]
-            predicted_jaw = model.predict(jaw_nodes).cpu().numpy()
-            predicted_jaw = predicted_jaw * (dataset.maxv - dataset.minv) + dataset.minv
-            np.save(args.predicted_jaw_path, predicted_jaw)
+
+        jaw_nodes = dataset.nodes[dataset.jaw_mask]
+        predicted_jaw = model.predict(jaw_nodes).cpu().numpy()
+        predicted_jaw = predicted_jaw * (dataset.maxv - dataset.minv) + dataset.minv
+        np.save(args.predicted_jaw_path, predicted_jaw)
 
 
 if __name__ == '__main__':
@@ -83,12 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--deformed_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
-    parser.add_argument('--predicted_jaw_path', type=str, default=None)
-
-    parser.add_argument('--generate_prestrain', action='store_true')
-    parser.add_argument('--use_prestrain', action='store_true')
-    parser.add_argument('--prestrain_model_path', type=str)
-    parser.add_argument('--prestrain_config_path', type=str, default='configs/config_inr.json')
+    parser.add_argument('--predicted_jaw_path', type=str, required=True)
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)
