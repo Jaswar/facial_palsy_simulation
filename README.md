@@ -2,7 +2,7 @@
 
 ### Main method
 
-The main method consists of three stages: training an INR, generating symmetric actuations, simulating the generated actuations with a neural simulator. Each of these stages is done with a separate script.
+The main method consists of multiple stages: training the default INR, training the flipped INR, and simulating the combination of the two. Each of these stages is done with a separate script.
 
 The first stage is done with the `train_inr.py` script. Below is an example on how to run the script:
 
@@ -19,7 +19,7 @@ python train_inr.py --tetmesh_path=data/tetmesh \
     --train
 ```
 
-It is also important to generate the second INR for the flipped deformed surface. To do so, one needs to run the script `flip_surface.py` followed by another
+Next, one can generate the second INR for the flipped deformed surface. To do so, one needs to run the script `flip_surface.py` followed by another
 call to `train_inr.py` with `deformed_path` being set to this new flipped surface. Running `flip_surface.py` can be done with the following:
 
 ```bash
@@ -30,17 +30,7 @@ python flip_surface.py --neutral_surface_path=data/tetmesh_face_surface.obj \
     --deformed_out_path=data/deformed_out.obj
 ```
 
-Next, the actuations have to be generated and symmetrised. This is done with the `predict_actuations.py` script:
-
-```bash
-python predict_actuations.py --tetmesh_path=data/tetmesh \
-    --tetmesh_contour_path=data/tetmesh_contour.obj \
-    --tetmesh_reflected_deformed_path=data/tetmesh_contour_ref_deformed.obj \
-    --model_path=checkpoints/best_model_017.pth \
-    --out_actuations_path=data/act_sym_017_per_vertex.npy
-```
-
-Finally, to simulate the generated actuations, the following script must be run:
+Next, to simulate the generated actuations, the following script must be run:
 
 ```bash
 python actuation_simulator.py --tetmesh_path=data/tetmesh \
@@ -48,15 +38,18 @@ python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --skull_path=data/skull.obj \
     --neutral_path=data/tetmesh_face_surface.obj \
     --deformed_path=data/ground_truths/deformed_surface_017.obj \
-    --actuations_path=data/act_sym_017_per_vertex.npy \
     --predicted_jaw_path=data/predicted_jaw.npy \
+    --main_actuation_model_path=checkpoints/best_model_017_pair_healthy.pth \
+    --secondary_actuation_model_path=checkpoints/best_model_017_pair_unhealthy.pth \
+    --contour_path=data/tetmesh_contour.obj \
+    --reflected_contour_path=data/tetmesh_contour_ref_deformed.obj \
     --use_pretrained \
     --pretrained_path=checkpoints/prior.pth \
     --checkpoint_path=checkpoints/best_model_simulator.pth \
     --train
 ```
 
-Next, one can visualize the effect of applying the learned simulation model to the high resolution mesh. This can be done 
+Finally, one can visualize the effect of applying the learned simulation model to the high resolution mesh. This can be done 
 with the `predict_high_res.py` file in the following way:
 
 ```bash

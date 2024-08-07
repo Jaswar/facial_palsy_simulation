@@ -19,8 +19,13 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    actuation_predictor = ActuationPredictor('checkpoints/best_model_017_pair_healthy.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', 
-                                             secondary_model_path='checkpoints/best_model_017_pair_unhealthy.pth', device=device)
+    actuation_predictor = ActuationPredictor(args.main_actuation_model_path, 
+                                             args.actuation_model_config_path, 
+                                             args.tetmesh_path, 
+                                             args.contour_path, 
+                                             args.reflected_contour_path, 
+                                             secondary_model_path=args.secondary_actuation_model_path, 
+                                             device=device)
     dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path,
                              actuation_predictor=actuation_predictor, num_samples=args.num_samples, device=device)
     dataset.visualize()
@@ -64,10 +69,15 @@ if __name__ == '__main__':
     parser.add_argument('--skull_path', type=str, required=True)
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--deformed_path', type=str, required=True)
-    parser.add_argument('--actuations_path', type=str, required=True)
     parser.add_argument('--predicted_jaw_path', type=str, default=None)
     parser.add_argument('--config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
+
+    parser.add_argument('--main_actuation_model_path', type=str, required=True)
+    parser.add_argument('--actuation_model_config_path', type=str, default='configs/config_inr.json')
+    parser.add_argument('--contour_path', type=str, required=True)
+    parser.add_argument('--reflected_contour_path', type=str, required=True)
+    parser.add_argument('--secondary_actuation_model_path', type=str, default=None)
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)

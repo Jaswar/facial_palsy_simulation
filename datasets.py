@@ -250,20 +250,12 @@ class INRDataset(TetmeshDataset):
 class SimulatorDataset(TetmeshDataset):
     FIXED_MASK = 1
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, 
-                 actuations_path=None, actuation_predictor=None,
+    def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, actuation_predictor,
                  sample=False, num_samples=10000, tol=1.0, device='cpu'):
         super(SimulatorDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
                                                sample, num_samples, tol, device)
-        self.actuations_path = actuations_path
         self.actuation_predictor = actuation_predictor
         self.predicted_jaw_path = predicted_jaw_path
-        assert actuations_path is not None or actuation_predictor is not None, \
-            'Either actuations_path or actuation_predictor must be provided'
-        assert actuations_path is None or actuation_predictor is None, \
-            'Only one of actuations_path or actuation_predictor can be provided'
-        assert not sample or actuation_predictor is not None, \
-            'Sampling is only supported when actuation_predictor is provided'
 
         self.actuations = None
 
@@ -298,10 +290,8 @@ class SimulatorDataset(TetmeshDataset):
 
     def __read(self):
         super(SimulatorDataset, self).read()
-        if self.actuations_path is not None:
-            self.actuations = np.load(self.actuations_path)
-        else:
-            self.actuations = self.actuation_predictor.predict(self.nodes)[1].cpu().numpy()
+        _, self.actuations = self.actuation_predictor.predict(self.nodes)
+        self.actuations = th.tensor(self.actuations).to(self.device).float()
 
     def __detect_box(self):
         self.box_mask = self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol)
