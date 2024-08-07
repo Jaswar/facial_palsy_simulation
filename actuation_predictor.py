@@ -61,7 +61,6 @@ class ActuationPredictor(object):
             V, s, A = get_actuations(deformation_gradient)
             self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
-            # _, mapped_indices = self.nodes_kdtree.query(new_points)
             A_sym = flip_actuations(self.V, self.s, flipped_points)
         else:
             flipped_points = th.tensor(flipped_points).to(self.device)

@@ -3,7 +3,7 @@ import torch as th
 from models import SimulatorModel, INRModel
 from datasets import SimulatorDataset
 from common import visualize_displacements, train_model, get_optimizer
-from predict_actuations import ActuationPredictor
+from actuation_predictor import ActuationPredictor
 import json
 
 
