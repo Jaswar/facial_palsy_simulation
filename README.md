@@ -45,6 +45,15 @@ python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --train
 ```
 
+Next, one can visualize the effect of applying the learned simulation model to the high resolution mesh. This can be done 
+with the `predict_high_res.py` file in the following way:
+
+```bash
+python predict_high_res.py --neutral_path=data/tetmesh_face_surface.obj \
+    --high_res_path=data/high_res_surface.obj \
+    --model_path=checkpoints/best_model_simulator_017_pair.pth
+```
+
 ### Random search
 
 `random_search.py` performs a random search over specified hyperparameters. The following command will launch it:
