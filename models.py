@@ -2,7 +2,7 @@ import torch as th
 import numpy as np
 from tqdm import tqdm
 import copy
-from dataset import SimulatorDataset, INRDataset
+from datasets import SimulatorDataset, INRDataset
 
 # pytorch implementation of procrustes
 # based on https://gist.github.com/mkocabas/54ea2ff3b03260e3fedf8ad22536f427

@@ -1,7 +1,7 @@
 import argparse
 import torch as th
 from models import SimulatorModel, INRModel
-from dataset import SimulatorDataset
+from datasets import SimulatorDataset
 from common import visualize_displacements, train_model, get_optimizer
 from predict_actuations import ActuationPredictor
 import json

@@ -1,7 +1,7 @@
 import torch as th
 import numpy as np
 from models import INRModel, SimulatorModel
-from dataset import TetmeshDataset
+from datasets import TetmeshDataset
 import time
 import copy
 import json

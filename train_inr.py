@@ -3,7 +3,7 @@ import pyvista as pv
 import torch as th
 import numpy as np
 from models import INRModel
-from dataset import INRDataset
+from datasets import INRDataset
 from common import visualize_displacements, train_model, get_optimizer
 import json
 

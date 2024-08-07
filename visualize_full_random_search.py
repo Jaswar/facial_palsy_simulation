@@ -5,7 +5,7 @@ import os
 import json
 import argparse
 from models import SimulatorModel
-from dataset import TetmeshDataset
+from datasets import TetmeshDataset
 from common import visualize_displacements
 
 
