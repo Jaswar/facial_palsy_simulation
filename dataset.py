@@ -54,7 +54,7 @@ def sample_from_tet(nodes, sampled_elements):
 class TetmeshDataset(th.utils.data.Dataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path,
-                    num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+                    num_samples=10000, tol=1.0, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
@@ -62,9 +62,10 @@ class TetmeshDataset(th.utils.data.Dataset):
 
         self.num_samples = num_samples
         self.tol = tol
-        self.stol = stol
         self.device = device
 
+        self.jaw_mask = None
+        self.skull_mask = None
         # combined mask used during training to specify the type of each node
         self.mask = None
 
@@ -108,6 +109,12 @@ class TetmeshDataset(th.utils.data.Dataset):
         plot.add_mesh(def_grid, color='lightgray')
         plot.link_views()
         plot.show()
+
+    def detect_skull(self):
+        self.skull_mask = self.detect(self.skull, self.tol)
+
+    def detect_jaw(self):
+        self.jaw_mask = self.detect(self.jaw, self.tol)
 
     def read(self):
         self.nodes, self.elements, _ = Tetmesh.read_tetgen_file(self.tetmesh_path)
@@ -171,7 +178,8 @@ class INRDataset(TetmeshDataset):
     def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path,
                  num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(INRDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
-                                         num_samples, tol, stol, device)
+                                         num_samples, tol, device)
+        self.stol = stol
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
 
@@ -183,8 +191,8 @@ class INRDataset(TetmeshDataset):
 
         self.__read()
 
-        self.__detect_skull()
-        self.__detect_jaw()
+        self.detect_skull()
+        self.detect_jaw()
         self.__detect_surface()
         assert self.surface_mask.sum() == self.neutral_surface.points.shape[0], \
             'Surface nodes and neutral surface points do not match. Perhaps try different stol?'
@@ -212,12 +220,6 @@ class INRDataset(TetmeshDataset):
         self.deformed_surface = self.deformed_surface.clean(point_merging=False)
         self.deformed_surface = pv.PolyData(self.deformed_surface)
 
-    def __detect_skull(self):
-        self.skull_mask = self.detect(self.skull, self.tol)
-
-    def __detect_jaw(self):
-        self.jaw_mask = self.detect(self.jaw, self.tol)
-
     def __detect_surface(self):
         kdtree = KDTree(self.nodes)
         _, indices = kdtree.query(self.neutral_surface.points)
@@ -244,9 +246,9 @@ class SimulatorDataset(TetmeshDataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, 
                  actuations_path=None, actuation_predictor=None,
-                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+                 num_samples=10000, tol=1.0, device='cpu'):
         super(SimulatorDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
-                                               num_samples, tol, stol, device)
+                                               num_samples, tol, device)
         self.actuations_path = actuations_path
         self.actuation_predictor = actuation_predictor
         self.predicted_jaw_path = predicted_jaw_path
@@ -266,8 +268,9 @@ class SimulatorDataset(TetmeshDataset):
 
         self.__read()
 
-        self.__detect_skull()
-        self.__detect_jaw()
+        self.detect_skull()
+        self.detect_jaw()
+        self.__detect_box()
         self.__detect_tissue()
         self.__combine_masks()
 
@@ -293,21 +296,19 @@ class SimulatorDataset(TetmeshDataset):
         else:
             self.actuations = self.actuation_predictor.predict(self.nodes).cpu().numpy()
 
-    def __detect_skull(self):
-        self.skull_mask = self.detect(self.skull, self.tol)
-        self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
-
-    def __detect_jaw(self):
-        self.jaw_mask = self.detect(self.jaw, self.tol)
+    def __detect_box(self):
+        self.box_mask = self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol)
     
     def __detect_tissue(self):
         self.tissue_mask = np.logical_and(np.logical_not(self.skull_mask), 
                                           np.logical_not(self.jaw_mask))
+        self.tissue_mask = np.logical_and(self.tissue_mask, np.logical_not(self.box_mask))
 
     def __combine_masks(self):
         self.mask = np.zeros(self.nodes.shape[0])
         self.mask[self.skull_mask] = 1
         self.mask[self.jaw_mask] = 2
+        self.mask[self.box_mask] = 3
 
     def __replace_jaw_with_prediction(self):
         predicted_jaw = np.load(self.predicted_jaw_path)

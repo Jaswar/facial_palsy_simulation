@@ -266,6 +266,7 @@ class SimulatorModel(BaseModel):
     def compute_loss(self, prediction, target, mask, jacobian, actuations):
         where_skull = mask == 1
         where_jaw = mask == 2
+        where_box = mask == 3
 
         skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_skull.sum() > 0:
@@ -277,7 +278,12 @@ class SimulatorModel(BaseModel):
             jaw_loss = th.nn.functional.l1_loss(prediction[where_jaw], target[where_jaw])
         jaw_loss *= self.w_jaw
 
+        box_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        if where_box.sum() > 0:
+            box_loss = th.nn.functional.l1_loss(prediction[where_box], target[where_box])
+        box_loss *= self.w_skull
+
         e_loss = energy_loss(jacobian, actuations) * self.w_energy
 
-        loss = skull_loss + jaw_loss + e_loss
+        loss = skull_loss + jaw_loss + box_loss + e_loss
         return loss
