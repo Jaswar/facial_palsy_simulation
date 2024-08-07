@@ -16,7 +16,7 @@ def main():
 
     surface = pv.PolyData('data/tetmesh_face_surface.obj')
     print('Loading high res surface')
-    high_res_surface = pv.read('data/high_res_surface.obj')
+    high_res_surface = pv.PolyData('data/high_res_surface.obj')
 
     neutral_projection = surface.project_points_to_plane()
     high_res_projection = high_res_surface.project_points_to_plane()
