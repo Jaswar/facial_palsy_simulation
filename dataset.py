@@ -53,25 +53,134 @@ def sample_from_tet(nodes, sampled_elements):
 
 class TetmeshDataset(th.utils.data.Dataset):
 
-    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path, predicted_jaw_path=None,
-                 actuations_path=None, actuation_predictor=None,
-                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+    def __init__(self, tetmesh_path, jaw_path, skull_path,
+                    num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
         self.skull_path = skull_path
-        self.neutral_path = neutral_path
-        self.deformed_path = deformed_path
-        self.actuations_path = actuations_path
-        self.actuation_predictor = actuation_predictor
-        self.predicted_jaw_path = predicted_jaw_path
 
         self.num_samples = num_samples
         self.tol = tol
         self.stol = stol
         self.device = device
 
-        self.actuations = None
+        # combined mask used during training to specify the type of each node
+        self.mask = None
+
+        # for normalization (denormalization if needed)
+        self.minv = None
+        self.maxv = None
+
+        self.nodes = None
+        self.elements = None
+        self.deformed_nodes = None
+        self.probabilites = None
+
+        self.epoch_nodes = None
+        self.epoch_mask = None
+        self.epoch_targets = None
+
+    def epilogue(self):
+        self.midpoint = np.mean(self.nodes[:, 0])
+        self.healthy_indices = self.nodes[:, 0] < self.midpoint
+
+        self.nodes = th.tensor(self.nodes).to(self.device).float()
+        self.mask = th.tensor(self.mask).to(self.device).float()
+        self.targets = th.tensor(self.deformed_nodes).to(self.device).float()
+
+    def visualize(self, masks):
+        numpy_nodes = self.nodes.cpu().numpy()
+        colors = ['midnightblue', 'red', 'green', 'yellow']
+        assert len(masks) <= len(colors), f'Only up to {len(colors)} node types can be visualized'
+
+        cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
+        celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+        grid = pv.UnstructuredGrid(cells, celltypes, numpy_nodes)
+        def_grid = pv.UnstructuredGrid(cells, celltypes, self.deformed_nodes)
+        
+        plot = pv.Plotter(shape=(1, 2))
+        plot.subplot(0, 0)
+        plot.add_mesh(grid, color='lightgray')
+        for i, mask in enumerate(masks):
+            plot.add_points(numpy_nodes[mask], color=colors[i], point_size=7.)
+        plot.subplot(0, 1)
+        plot.add_mesh(def_grid, color='lightgray')
+        plot.link_views()
+        plot.show()
+
+    def read(self):
+        self.nodes, self.elements, _ = Tetmesh.read_tetgen_file(self.tetmesh_path)
+        self.deformed_nodes = self.nodes.copy()
+        self.probabilities = compute_probabilities(self.nodes, self.elements)
+
+        self.jaw = pv.read(self.jaw_path)
+        self.jaw = self.jaw.clean()
+        self.jaw = pv.PolyData(self.jaw)
+
+        self.skull = pv.read(self.skull_path)
+        self.skull = self.skull.clean()
+        self.skull = pv.PolyData(self.skull)
+    
+    def normalize(self):
+        self.minv = np.min(self.nodes)
+        self.maxv = np.max(self.nodes)
+
+        self.nodes = (self.nodes - self.minv) / (self.maxv - self.minv)
+        self.deformed_nodes = (self.deformed_nodes - self.minv) / (self.maxv - self.minv)
+
+    def detect(self, mesh, tol):
+        ds, _, _ = igl.point_mesh_squared_distance(self.nodes, mesh.points, mesh.regular_faces)
+        boundary_mask = ds < tol
+        return boundary_mask
+    
+    def sample_nodes(self, num_nodes):
+        if th.is_tensor(num_nodes):
+            num_nodes = num_nodes.cpu().item()
+
+        idx = np.random.choice(self.elements.shape[0], num_nodes, p=self.probabilities)
+        sampled_elements = self.elements[idx]
+        sampled_points = sample_from_tet(self.nodes, sampled_elements)
+        return sampled_points
+
+    def prepare_for_epoch(self):
+        self.epoch_nodes = self.nodes.clone()
+        self.epoch_mask = self.mask.clone()
+        self.epoch_targets = self.targets.clone()
+
+        idx = th.randperm(self.epoch_nodes.shape[0])
+        self.epoch_nodes = self.epoch_nodes[idx]
+        self.epoch_mask = self.epoch_mask[idx]
+        self.epoch_targets = self.epoch_targets[idx]  
+
+        where_tissue = self.epoch_mask == 0
+        # self.epoch_nodes[where_tissue] = self.sample_nodes(where_tissue.sum())
+        return idx
+
+    def __len__(self):
+        return min(self.num_samples, self.nodes.shape[0])
+    
+    def __getitem__(self, idx):
+        if th.is_tensor(idx):
+            idx = idx.tolist()
+        return idx
+
+
+class INRDataset(th.utils.data.Dataset):
+
+    def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path,
+                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+        super(INRDataset, self).__init__()
+        self.tetmesh_path = tetmesh_path
+        self.jaw_path = jaw_path
+        self.skull_path = skull_path
+        self.neutral_path = neutral_path
+        self.deformed_path = deformed_path
+
+        self.num_samples = num_samples
+        self.tol = tol
+        self.stol = stol
+        self.device = device
 
         # the different parts of the face
         self.skull_mask = None
@@ -93,7 +202,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_nodes = None
         self.epoch_mask = None
         self.epoch_targets = None
-        self.epoch_actuations = None  # set only if actuations_path is provided, to be used in the simulation model
         
         self.__read()
 
@@ -106,9 +214,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.__detect_tissue()
         self.__combine_masks()
 
-        if self.predicted_jaw_path is not None:
-            self.__replace_jaw_with_prediction()
-
         self.__normalize()
 
         self.midpoint = np.mean(self.nodes[:, 0])
@@ -117,8 +222,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.nodes = th.tensor(self.nodes).to(device).float()
         self.mask = th.tensor(self.mask).to(device).float()
         self.targets = th.tensor(self.deformed_nodes).to(device).float()
-        if self.actuations is not None:
-            self.actuations = th.tensor(self.actuations).to(device).float()
 
     def visualize(self):
         numpy_nodes = self.nodes.cpu().numpy()
@@ -163,9 +266,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.deformed_surface = pv.read(self.deformed_path)
         self.deformed_surface = self.deformed_surface.clean(point_merging=False)
         self.deformed_surface = pv.PolyData(self.deformed_surface)
-
-        if self.actuations_path is not None:
-            self.actuations = np.load(self.actuations_path)
     
     def __normalize(self):
         self.minv = np.min(self.nodes)
@@ -176,8 +276,6 @@ class TetmeshDataset(th.utils.data.Dataset):
 
     def __detect_skull(self):
         self.skull_mask = self.__detect(self.skull, self.tol)
-        if self.actuations_path is not None:
-            self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
 
     def __detect_jaw(self):
         self.jaw_mask = self.__detect(self.jaw, self.tol)
@@ -206,10 +304,6 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.mask[self.jaw_mask] = 2
         self.mask[self.surface_mask] = 3
 
-    def __replace_jaw_with_prediction(self):
-        predicted_jaw = np.load(self.predicted_jaw_path)
-        self.deformed_nodes[self.jaw_mask] = predicted_jaw
-
     def __sample_nodes(self, num_nodes):
         if th.is_tensor(num_nodes):
             num_nodes = num_nodes.cpu().item()
@@ -223,21 +317,14 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_nodes = self.nodes.clone()
         self.epoch_mask = self.mask.clone()
         self.epoch_targets = self.targets.clone()
-        if self.actuations is not None:
-            self.epoch_actuations = self.actuations.clone()
 
         idx = th.randperm(self.epoch_nodes.shape[0])
         self.epoch_nodes = self.epoch_nodes[idx]
         self.epoch_mask = self.epoch_mask[idx]
         self.epoch_targets = self.epoch_targets[idx]  
-        if self.actuations is not None:
-            self.epoch_actuations = self.epoch_actuations[idx]
 
         where_tissue = self.epoch_mask == 0
         self.epoch_nodes[where_tissue] = self.__sample_nodes(where_tissue.sum())
-        if self.actuation_predictor is not None:
-            A, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
-            self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
 
     def __len__(self):
         return min(self.num_samples, self.nodes.shape[0])
@@ -246,9 +333,91 @@ class TetmeshDataset(th.utils.data.Dataset):
         if th.is_tensor(idx):
             idx = idx.tolist()
 
-        if self.actuations is None:
-            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], None
+        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
+        
+
+class SimulatorDataset(TetmeshDataset):
+
+    def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, 
+                 actuations_path=None, actuation_predictor=None,
+                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+        super(SimulatorDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
+                                               num_samples, tol, stol, device)
+        self.actuations_path = actuations_path
+        self.actuation_predictor = actuation_predictor
+        self.predicted_jaw_path = predicted_jaw_path
+        assert actuations_path is not None or actuation_predictor is not None, \
+            'Either actuations_path or actuation_predictor must be provided'
+        assert actuations_path is None or actuation_predictor is None, \
+            'Only one of actuations_path or actuation_predictor can be provided'
+
+        self.actuations = None
+
+        # the different parts of the face
+        self.skull_mask = None
+        self.jaw_mask = None
+        self.tissue_mask = None
+
+        self.epoch_actuations = None  # set only if actuations_path is provided, to be used in the simulation model
+
+        self.__read()
+
+        self.__detect_skull()
+        self.__detect_jaw()
+        self.__detect_tissue()
+        self.__combine_masks()
+
+        self.__replace_jaw_with_prediction()
+
+        self.normalize()
+        
+        self.epilogue()
+
+    def epilogue(self):
+        super(SimulatorDataset, self).epilogue()
+        self.actuations = th.tensor(self.actuations).to(self.device).float()
+
+    def visualize(self):
+        super(SimulatorDataset, self).visualize(
+            [self.skull_mask, self.jaw_mask, self.tissue_mask]
+        )
+
+    def __read(self):
+        super(SimulatorDataset, self).read()
+
+        if self.actuations_path is not None:
+            self.actuations = np.load(self.actuations_path)
         else:
-            return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.epoch_actuations[idx]
+            self.actuations = self.actuation_predictor.predict(self.nodes).cpu().numpy()
 
+    def __detect_skull(self):
+        self.skull_mask = self.detect(self.skull, self.tol)
+        self.skull_mask = np.logical_or(self.skull_mask, self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol))
 
+    def __detect_jaw(self):
+        self.jaw_mask = self.detect(self.jaw, self.tol)
+    
+    def __detect_tissue(self):
+        self.tissue_mask = np.logical_and(np.logical_not(self.skull_mask), 
+                                          np.logical_not(self.jaw_mask))
+
+    def __combine_masks(self):
+        self.mask = np.zeros(self.nodes.shape[0])
+        self.mask[self.skull_mask] = 1
+        self.mask[self.jaw_mask] = 2
+
+    def __replace_jaw_with_prediction(self):
+        predicted_jaw = np.load(self.predicted_jaw_path)
+        self.deformed_nodes[self.jaw_mask] = predicted_jaw
+
+    def prepare_for_epoch(self):
+        idx = super(SimulatorDataset, self).prepare_for_epoch()
+        self.epoch_actuations = self.actuations[idx]
+        if self.actuation_predictor is not None:
+            A, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
+            self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
+
+    def __getitem__(self, idx):
+        idx = super(SimulatorDataset, self).__getitem__(idx)        
+        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.epoch_actuations[idx]
+        

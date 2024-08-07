@@ -175,17 +175,16 @@ class BaseModel(th.nn.Module):
         for batch_inx in range(num_batches):
             start_inx = batch_inx * batch_size
             end_inx = (batch_inx + 1) * batch_size
-            inputs, mask, target, actuations = dataset[start_inx:end_inx]
-            prediction = self(inputs)
-            jacobian = self.construct_jacobian(inputs)
-            loss = self.compute_loss(prediction, target, mask, jacobian, actuations)
+            # note that batch_len is not the same as batch_size
+            # because the last batch might be smaller
+            loss, batch_len = self.process_batch(dataset[start_inx:end_inx])
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            total_samples += len(inputs)
-            total_loss += loss.item() * len(inputs)
+            total_samples += batch_len
+            total_loss += loss.item() * batch_len
         return total_loss / total_samples
 
     def construct_jacobian(self, inputs):
@@ -213,7 +212,14 @@ class INRModel(BaseModel):
         self.w_deformation = w_deformation
         self.w_surface = w_surface
     
-    def compute_loss(self, prediction, target, mask, jacobian, actuations):
+    def process_batch(self, batch):
+        inputs, mask, target = batch
+        prediction = self(inputs)
+        jacobian = self.construct_jacobian(inputs)
+        loss = self.compute_loss(prediction, target, mask, jacobian)
+        return loss, len(inputs)
+
+    def compute_loss(self, prediction, target, mask, jacobian):
         where_skull = mask == 1
         where_jaw = mask == 2
         where_surface = mask == 3
@@ -249,6 +255,13 @@ class SimulatorModel(BaseModel):
                                        with_fourier, fourier_features, 
                                        w_jaw, w_skull)
         self.w_energy = w_energy
+
+    def process_batch(self, batch):
+        inputs, mask, target, actuations = batch
+        prediction = self(inputs)
+        jacobian = self.construct_jacobian(inputs)
+        loss = self.compute_loss(prediction, target, mask, jacobian, actuations)
+        return loss, len(inputs)
     
     def compute_loss(self, prediction, target, mask, jacobian, actuations):
         where_skull = mask == 1
