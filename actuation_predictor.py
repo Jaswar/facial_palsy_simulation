@@ -129,12 +129,17 @@ class ActuationPredictor(object):
         new_pos = np.average(new_pts, weights=1.0/(d+1e-6).repeat(3, axis=2), axis=1)
         return new_pos
 
+    def visualize(self, points=None):
+        A, A_sym = self.predict(self.nodes)
+        self.__visualize(A, A_sym, points)
 
-    def visualize(self, A, A_sym, points=None):
+    def __visualize(self, A, A_sym, points=None):
         _, s, _ = th.svd(th.tensor(A).float())
         actuations = th.sum(s, dim=1)
         _, s, _ = th.svd(th.tensor(A_sym).float())
         actuations_sym = th.sum(s, dim=1)
+        actuations = actuations.cpu().numpy()
+        actuations_sym = actuations_sym.cpu().numpy()
 
         if points is None:
             cells = np.hstack([np.full((self.elements.shape[0], 1), 4, dtype=int), self.elements])
@@ -169,7 +174,7 @@ def main(args):
     A, A_sym = predictor.predict(points)
 
     if not args.silent:
-        predictor.visualize(A, A_sym)
+        predictor.visualize()
     np.save(args.out_actuations_path, A_sym)
 
 

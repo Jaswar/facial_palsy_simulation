@@ -26,6 +26,7 @@ def main(args):
                                              args.reflected_contour_path, 
                                              secondary_model_path=args.secondary_actuation_model_path, 
                                              device=device)
+    actuation_predictor.visualize()
     dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path,
                              actuation_predictor=actuation_predictor, num_samples=args.num_samples, device=device)
     dataset.visualize()
