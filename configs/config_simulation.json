@@ -6,7 +6,6 @@
     "batch_size": 2048,
     "fourier_features": 8,
     "optimizer": "adam",
-    "w_jaw": 1.0,
-    "w_skull": 2.0,
+    "w_fixed": 2.0,
     "w_energy": 0.5
 }

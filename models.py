@@ -110,8 +110,7 @@ class BaseModel(th.nn.Module):
     
     def __init__(self, input_size, output_size, 
                  num_hidden_layers, hidden_size, use_sigmoid_output, 
-                 with_fourier, fourier_features, 
-                 w_jaw, w_skull):
+                 with_fourier, fourier_features):
         super(BaseModel, self).__init__()
         self.num_hidden_layers = num_hidden_layers
         self.input_size = input_size
@@ -120,9 +119,6 @@ class BaseModel(th.nn.Module):
         self.output_size = output_size
         self.with_fourier = with_fourier
         self.fourier_features = fourier_features
-
-        self.w_jaw = w_jaw
-        self.w_skull = w_skull
 
         self.layers = th.nn.ModuleList()
         if not with_fourier:
@@ -207,10 +203,11 @@ class INRModel(BaseModel):
                  w_deformation=0.02, w_jaw=1., w_skull=2., w_surface=10.):
         super(INRModel, self).__init__(input_size, output_size, 
                                        num_hidden_layers, hidden_size, use_sigmoid_output, 
-                                       with_fourier, fourier_features, 
-                                       w_jaw, w_skull)
+                                       with_fourier, fourier_features)
         self.w_deformation = w_deformation
         self.w_surface = w_surface
+        self.w_jaw = w_jaw
+        self.w_skull = w_skull
     
     def process_batch(self, batch):
         inputs, mask, target = batch
@@ -250,12 +247,12 @@ class SimulatorModel(BaseModel):
     def __init__(self, input_size=3, output_size=3, 
                  num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
                  with_fourier=True, fourier_features=10, 
-                 w_energy=0.5, w_jaw=1., w_skull=2.):
+                 w_energy=0.5, w_fixed=2.):
         super(SimulatorModel, self).__init__(input_size, output_size, 
                                        num_hidden_layers, hidden_size, use_sigmoid_output, 
-                                       with_fourier, fourier_features, 
-                                       w_jaw, w_skull)
+                                       with_fourier, fourier_features)
         self.w_energy = w_energy
+        self.w_fixed = w_fixed
 
     def process_batch(self, batch):
         inputs, mask, target, actuations = batch
@@ -267,12 +264,12 @@ class SimulatorModel(BaseModel):
     def compute_loss(self, prediction, target, mask, jacobian, actuations):
         where_fixed = mask == SimulatorDataset.FIXED_MASK
 
-        fix_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        fixed_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_fixed.sum() > 0:
-            fix_loss = th.nn.functional.l1_loss(prediction[where_fixed], target[where_fixed])
-        fix_loss *= self.w_skull
+            fixed_loss = th.nn.functional.l1_loss(prediction[where_fixed], target[where_fixed])
+        fixed_loss *= self.w_fixed
 
         e_loss = energy_loss(jacobian, actuations) * self.w_energy
 
-        loss = fix_loss + e_loss
+        loss = fixed_loss + e_loss
         return loss

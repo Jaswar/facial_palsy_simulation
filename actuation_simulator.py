@@ -29,8 +29,7 @@ def main(args):
                      hidden_size=config['hidden_size'], 
                      fourier_features=config['fourier_features'], 
                      w_energy=config['w_energy'],
-                     w_jaw=config['w_jaw'],
-                     w_skull=config['w_skull'])
+                     w_fixed=config['w_fixed'])
     model = th.compile(model)
     model.to(device)
 
