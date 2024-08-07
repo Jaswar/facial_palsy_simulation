@@ -2,7 +2,7 @@ import torch as th
 import numpy as np
 from tqdm import tqdm
 import copy
-
+from dataset import SimulatorDataset, INRDataset
 
 # pytorch implementation of procrustes
 # based on https://gist.github.com/mkocabas/54ea2ff3b03260e3fedf8ad22536f427
@@ -220,9 +220,10 @@ class INRModel(BaseModel):
         return loss, len(inputs)
 
     def compute_loss(self, prediction, target, mask, jacobian):
-        where_skull = mask == 1
-        where_jaw = mask == 2
-        where_surface = mask == 3
+        where_skull = mask == INRDataset.SKULL_MASK
+        where_jaw = mask == INRDataset.JAW_MASK
+        where_surface = mask == INRDataset.SURFACE_MASK
+
         surface_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_surface.sum() > 0:
             surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
@@ -264,26 +265,14 @@ class SimulatorModel(BaseModel):
         return loss, len(inputs)
     
     def compute_loss(self, prediction, target, mask, jacobian, actuations):
-        where_skull = mask == 1
-        where_jaw = mask == 2
-        where_box = mask == 3
+        where_fixed = mask == SimulatorDataset.FIXED_MASK
 
-        skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_skull.sum() > 0:
-            skull_loss = th.nn.functional.l1_loss(prediction[where_skull], target[where_skull])
-        skull_loss *= self.w_skull
-
-        jaw_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_jaw.sum() > 0:
-            jaw_loss = th.nn.functional.l1_loss(prediction[where_jaw], target[where_jaw])
-        jaw_loss *= self.w_jaw
-
-        box_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_box.sum() > 0:
-            box_loss = th.nn.functional.l1_loss(prediction[where_box], target[where_box])
-        box_loss *= self.w_skull
+        fix_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        if where_fixed.sum() > 0:
+            fix_loss = th.nn.functional.l1_loss(prediction[where_fixed], target[where_fixed])
+        fix_loss *= self.w_skull
 
         e_loss = energy_loss(jacobian, actuations) * self.w_energy
 
-        loss = skull_loss + jaw_loss + box_loss + e_loss
+        loss = fix_loss + e_loss
         return loss

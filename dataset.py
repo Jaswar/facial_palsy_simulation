@@ -174,6 +174,9 @@ class TetmeshDataset(th.utils.data.Dataset):
 
 
 class INRDataset(TetmeshDataset):
+    SKULL_MASK = 1
+    JAW_MASK = 2
+    SURFACE_MASK = 3
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path,
                  num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
@@ -233,9 +236,9 @@ class INRDataset(TetmeshDataset):
     
     def __combine_masks(self):
         self.mask = np.zeros(self.nodes.shape[0])
-        self.mask[self.skull_mask] = 1
-        self.mask[self.jaw_mask] = 2
-        self.mask[self.surface_mask] = 3
+        self.mask[self.skull_mask] = INRDataset.SKULL_MASK
+        self.mask[self.jaw_mask] = INRDataset.JAW_MASK
+        self.mask[self.surface_mask] = INRDataset.SURFACE_MASK
     
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)
@@ -243,6 +246,7 @@ class INRDataset(TetmeshDataset):
         
 
 class SimulatorDataset(TetmeshDataset):
+    FIXED_MASK = 1
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, 
                  actuations_path=None, actuation_predictor=None,
@@ -306,9 +310,7 @@ class SimulatorDataset(TetmeshDataset):
 
     def __combine_masks(self):
         self.mask = np.zeros(self.nodes.shape[0])
-        self.mask[self.skull_mask] = 1
-        self.mask[self.jaw_mask] = 2
-        self.mask[self.box_mask] = 3
+        self.mask[~self.tissue_mask] = SimulatorDataset.FIXED_MASK
 
     def __replace_jaw_with_prediction(self):
         predicted_jaw = np.load(self.predicted_jaw_path)
