@@ -290,7 +290,7 @@ class SimulatorDataset(TetmeshDataset):
 
     def visualize(self):
         super(SimulatorDataset, self).visualize(
-            [self.skull_mask, self.jaw_mask, self.tissue_mask]
+            [self.skull_mask, self.jaw_mask, self.tissue_mask, self.box_mask]
         )
 
     def __read(self):
