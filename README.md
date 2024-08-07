@@ -19,6 +19,17 @@ python train_inr.py --tetmesh_path=data/tetmesh \
     --train
 ```
 
+It is also important to generate the second INR for the flipped deformed surface. To do so, one needs to run the script `flip_surface.py` followed by another
+call to `train_inr.py` with `deformed_path` being set to this new flipped surface. Running `flip_surface.py` can be done with the following:
+
+```bash
+python flip_surface.py --neutral_surface_path=data/tetmesh_face_surface.obj \
+    --deformed_surface_path=data/ground_truths/deformed_surface_017.obj \
+    --contour_path=data/tetmesh_contour.obj \
+    --reflected_contour_path=data/tetmesh_contour_ref_deformed.obj \
+    --deformed_out_path=data/deformed_out.obj
+```
+
 Next, the actuations have to be generated and symmetrised. This is done with the `predict_actuations.py` script:
 
 ```bash

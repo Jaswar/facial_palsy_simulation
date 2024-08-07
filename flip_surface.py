@@ -2,6 +2,7 @@ import numpy as np
 import pyvista as pv
 from scipy.spatial import KDTree
 from tetmesh import Tetmesh
+import argparse
 
 
 def bary_transform(points, surface, deformed_surface, kdtree):
@@ -24,17 +25,12 @@ def bary_transform(points, surface, deformed_surface, kdtree):
     return new_pos
 
 
-def main():
-    neutral_surface_path = 'data/tetmesh_face_surface.obj'
-    deformed_surface_path = 'data/ground_truths/deformed_surface_017.obj'
-    contour_path = 'data/tetmesh_contour.obj'
-    reflected_contour_path = 'data/tetmesh_contour_ref_deformed.obj'
-    deformed_out_path = 'data/deformed_out.obj'
-
-    neutral_surface = pv.PolyData(neutral_surface_path)
-    deformed_surface = pv.PolyData(deformed_surface_path)
-    contour = pv.PolyData(contour_path)
-    reflected_contour = pv.PolyData(reflected_contour_path)
+def main(args):
+    neutral_surface = pv.PolyData(args.neutral_surface_path)
+    deformed_surface = pv.PolyData(args.deformed_surface_path)
+    contour = pv.PolyData(args.contour_path)
+    reflected_contour = pv.PolyData(args.reflected_contour_path)
+    old_deformed_surface = deformed_surface.copy()
 
     kdtree = KDTree(contour.points)
     _, indices_neutral = kdtree.query(neutral_surface.points)
@@ -50,14 +46,22 @@ def main():
 
     plot = pv.Plotter(shape=(1, 2))
     plot.subplot(0, 0)
-    plot.add_mesh(contour, color='lightblue')
+    plot.add_mesh(old_deformed_surface, color='lightblue')
     plot.subplot(0, 1)
     plot.add_mesh(deformed_surface, color='lightblue')
     plot.link_views()
     plot.show()
 
-    pv.save_meshio(deformed_out_path, deformed_surface)
+    pv.save_meshio(args.deformed_out_path, deformed_surface)
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--neutral_surface_path', type=str, required=True)
+    parser.add_argument('--deformed_surface_path', type=str, required=True)
+    parser.add_argument('--contour_path', type=str, required=True)
+    parser.add_argument('--reflected_contour_path', type=str, required=True)
+    parser.add_argument('--deformed_out_path', type=str, required=True)
+
+    args = parser.parse_args()
+    main(args)
