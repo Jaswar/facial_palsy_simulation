@@ -16,7 +16,19 @@ def main():
 
     surface = pv.PolyData('data/tetmesh_face_surface.obj')
     print('Loading high res surface')
-    high_res_surface = pv.read('../medusa_scans/rawMeshes/take_001.obj')
+    high_res_surface = pv.read('data/high_res_surface.obj')
+
+    neutral_projection = surface.project_points_to_plane()
+    high_res_projection = high_res_surface.project_points_to_plane()
+    neutral_projection.points[:, 2] = 0.
+    high_res_projection.points[:, 2] = 0.
+
+    print('Removing points')
+    dp, _, _ = igl.point_mesh_squared_distance(high_res_projection.points, neutral_projection.points, neutral_projection.regular_faces)
+    d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
+    in_bounds = np.logical_and(dp < 0.001, d3d < 20.0)
+    high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
+    print('Points removed')
 
     maxv = np.max(surface.points)
     minv = np.min(surface.points)
@@ -29,14 +41,10 @@ def main():
     model.load_state_dict(th.load('checkpoints/best_model_simulator_017_pair_sampling.pth'))
     model.to(device)
     
-    d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
-    in_bounds = d < 0.001
-
-    inputs = th.tensor(high_res_surface.points[in_bounds]).float().to(device)
+    inputs = th.tensor(high_res_surface.points).float().to(device)
     outputs = model.predict(inputs).cpu().numpy()
-    high_res_surface.points[in_bounds] = outputs
-    print('Removing points')
-    high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
+    outputs = outputs * (maxv - minv) + minv
+    high_res_surface.points = outputs    
 
     plot = pv.Plotter()
     plot.add_mesh(high_res_surface, color='lightblue')
