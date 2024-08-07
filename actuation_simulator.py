@@ -21,8 +21,8 @@ def main(args):
 
     actuation_predictor = ActuationPredictor('checkpoints/best_model_017_pair_healthy.pth', 'configs/config_inr.json', 'data/tetmesh', 'data/tetmesh_contour.obj', 'data/tetmesh_contour_ref_deformed.obj', 
                                              secondary_model_path='checkpoints/best_model_017_pair_unhealthy.pth', device=device)
-    dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path, args.actuations_path, 
-                             actuation_predictor=None, num_samples=args.num_samples, device=device)
+    dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path,
+                             actuation_predictor=actuation_predictor, num_samples=args.num_samples, device=device)
     dataset.visualize()
     
     model = SimulatorModel(num_hidden_layers=config['num_hidden_layers'], 

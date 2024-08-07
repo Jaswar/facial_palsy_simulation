@@ -54,12 +54,13 @@ def sample_from_tet(nodes, sampled_elements):
 class TetmeshDataset(th.utils.data.Dataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path,
-                    num_samples=10000, tol=1.0, device='cpu'):
+                 sample, num_samples, tol, device):
         super(TetmeshDataset, self).__init__()
         self.tetmesh_path = tetmesh_path
         self.jaw_path = jaw_path
         self.skull_path = skull_path
 
+        self.sample = sample
         self.num_samples = num_samples
         self.tol = tol
         self.device = device
@@ -160,8 +161,9 @@ class TetmeshDataset(th.utils.data.Dataset):
         self.epoch_mask = self.epoch_mask[idx]
         self.epoch_targets = self.epoch_targets[idx]  
 
-        where_tissue = self.epoch_mask == 0
-        # self.epoch_nodes[where_tissue] = self.sample_nodes(where_tissue.sum())
+        if self.sample:
+            where_tissue = self.epoch_mask == 0
+            self.epoch_nodes[where_tissue] = self.sample_nodes(where_tissue.sum())
         return idx
 
     def __len__(self):
@@ -179,9 +181,9 @@ class INRDataset(TetmeshDataset):
     SURFACE_MASK = 3
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path,
-                 num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+                 sample=False, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
         super(INRDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
-                                         num_samples, tol, device)
+                                         sample, num_samples, tol, device)
         self.stol = stol
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
@@ -227,7 +229,7 @@ class INRDataset(TetmeshDataset):
         kdtree = KDTree(self.nodes)
         _, indices = kdtree.query(self.neutral_surface.points)
         self.surface_mask = np.zeros(self.nodes.shape[0], dtype=bool)
-        self.surface_mask[indices] = True        
+        self.surface_mask[indices] = True
         self.deformed_nodes[indices] = self.deformed_surface.points
     
     def __detect_tissue(self):
@@ -250,9 +252,9 @@ class SimulatorDataset(TetmeshDataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, predicted_jaw_path, 
                  actuations_path=None, actuation_predictor=None,
-                 num_samples=10000, tol=1.0, device='cpu'):
+                 sample=False, num_samples=10000, tol=1.0, device='cpu'):
         super(SimulatorDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
-                                               num_samples, tol, device)
+                                               sample, num_samples, tol, device)
         self.actuations_path = actuations_path
         self.actuation_predictor = actuation_predictor
         self.predicted_jaw_path = predicted_jaw_path
@@ -260,15 +262,16 @@ class SimulatorDataset(TetmeshDataset):
             'Either actuations_path or actuation_predictor must be provided'
         assert actuations_path is None or actuation_predictor is None, \
             'Only one of actuations_path or actuation_predictor can be provided'
+        assert not sample or actuation_predictor is not None, \
+            'Sampling is only supported when actuation_predictor is provided'
 
         self.actuations = None
 
         # the different parts of the face
-        self.skull_mask = None
-        self.jaw_mask = None
+        self.box_mask = None
         self.tissue_mask = None
 
-        self.epoch_actuations = None  # set only if actuations_path is provided, to be used in the simulation model
+        self.epoch_actuations = None
 
         self.__read()
 
@@ -298,7 +301,7 @@ class SimulatorDataset(TetmeshDataset):
         if self.actuations_path is not None:
             self.actuations = np.load(self.actuations_path)
         else:
-            self.actuations = self.actuation_predictor.predict(self.nodes).cpu().numpy()
+            self.actuations = self.actuation_predictor.predict(self.nodes)[1].cpu().numpy()
 
     def __detect_box(self):
         self.box_mask = self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol)
@@ -319,8 +322,10 @@ class SimulatorDataset(TetmeshDataset):
     def prepare_for_epoch(self):
         idx = super(SimulatorDataset, self).prepare_for_epoch()
         self.epoch_actuations = self.actuations[idx]
-        if self.actuation_predictor is not None:
-            A, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
+        if self.sample:
+            # if sampling, it is necessary to recalculate the actuations
+            # since the points are anywhere within the tetmesh
+            _, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
             self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
 
     def __getitem__(self, idx):

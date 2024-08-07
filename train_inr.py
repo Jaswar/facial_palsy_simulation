@@ -20,7 +20,7 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    dataset = INRDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path,
+    dataset = INRDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, sample=True,
                              num_samples=args.num_samples, device=device)
     dataset.visualize()
     
@@ -38,7 +38,7 @@ def main(args):
         try:        
             model.load_state_dict(th.load(args.pretrained_path))
         except KeyError as ex:
-            print(f'Pretrained INR model architecture must match the simulation model architecture. Error: {ex}')
+            print(f'Pretrained INR model architecture must match the new INR model architecture. Error: {ex}')
             return
     
     if args.benchmark:
