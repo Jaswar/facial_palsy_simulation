@@ -171,16 +171,15 @@ class BaseModel(th.nn.Module):
         for batch_inx in range(num_batches):
             start_inx = batch_inx * batch_size
             end_inx = (batch_inx + 1) * batch_size
-            # note that batch_len is not the same as batch_size
-            # because the last batch might be smaller
-            loss, batch_len = self.process_batch(dataset[start_inx:end_inx])
+            batch = dataset[start_inx:end_inx]
+            loss = self.process_batch(batch)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            total_samples += batch_len
-            total_loss += loss.item() * batch_len
+            total_samples += len(batch)
+            total_loss += loss.item() * len(batch)
         return total_loss / total_samples
 
     def construct_jacobian(self, inputs):
@@ -214,7 +213,7 @@ class INRModel(BaseModel):
         prediction = self(inputs)
         jacobian = self.construct_jacobian(inputs)
         loss = self.compute_loss(prediction, target, mask, jacobian)
-        return loss, len(inputs)
+        return loss
 
     def compute_loss(self, prediction, target, mask, jacobian):
         where_skull = mask == INRDataset.SKULL_MASK
@@ -259,7 +258,7 @@ class SimulatorModel(BaseModel):
         prediction = self(inputs)
         jacobian = self.construct_jacobian(inputs)
         loss = self.compute_loss(prediction, target, mask, jacobian, actuations)
-        return loss, len(inputs)
+        return loss
     
     def compute_loss(self, prediction, target, mask, jacobian, actuations):
         where_fixed = mask == SimulatorDataset.FIXED_MASK
