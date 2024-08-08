@@ -5,26 +5,6 @@ from tetmesh import Tetmesh
 import argparse
 
 
-def bary_transform(points, surface, deformed_surface, kdtree):
-    if points.ndim == 1:
-        points = points[None, :]
-    n_points = points.shape[0]
-    # find NNs on undeformed mesh
-    d, idcs = kdtree.query(points, k=5)
-    old_nns = surface.points[idcs]
-    # look up positions on deformed, flipped mesh (implicit mapping)
-    new_nns = deformed_surface.points[idcs]
-    # find the "offset" from the query point to the NNs and flip the x
-    offset = old_nns - points[:, None, :]
-    offset[:, :, 0] *= -1
-
-    # find the possible "new" positions and calculate weighted average
-    new_pts = new_nns - offset
-    d = d[:, :, None]  # n_points, k, 1
-    new_pos = np.average(new_pts, weights=1.0/(d+1e-6).repeat(3, axis=2), axis=1)
-    return new_pos
-
-
 def main(args):
     neutral_surface = pv.PolyData(args.neutral_surface_path)
     deformed_surface = pv.PolyData(args.deformed_surface_path)
