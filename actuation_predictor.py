@@ -10,14 +10,19 @@ from stiefel_exp.Stiefel_Exp_Log import Stiefel_Exp, Stiefel_Log
 from tqdm import tqdm
 
 
+def positive_determinant(matrix):
+    Z = th.eye(matrix.shape[1], device=matrix.device).unsqueeze(0)
+    Z = Z.repeat(matrix.shape[0], 1, 1)
+    Z[:, -1, -1] *= th.sign(th.det(matrix))
+    return th.bmm(matrix, Z)
+
+
 def get_actuations(deformation_gradient):
     U, s, V = th.svd(deformation_gradient)
     s = th.diag_embed(s)
 
-    Z = th.eye(U.shape[1], device=deformation_gradient.device).unsqueeze(0)
-    Z = Z.repeat(U.shape[0], 1, 1)
-    Z[:, -1, -1] *= th.sign(th.det(V))
-    V = th.bmm(V, Z)
+    # make sure the determinant of V is positive
+    V = positive_determinant(V)
 
     A = th.bmm(V, th.bmm(s, V.permute(0, 2, 1)))
     return V, s, A
@@ -32,19 +37,25 @@ def flip_actuations(V, s, flipped_points):
 
 
 # from https://www.researchgate.net/publication/330165271_Parametric_Model_Reduction_via_Interpolating_Orthonormal_Bases
-def interpolate(basis_0, basis_1, alpha):
-    delta, _ = Stiefel_Log(basis_0, basis_1, 1e-3)
-    basis_2 = Stiefel_Exp(basis_0, alpha * delta)
-    return basis_2
+def interpolate_actuations(actuations_0, actuations_1, alpha):
+    u0, s0, v0 = th.svd(actuations_0)
+    u0, v0 = positive_determinant(u0), positive_determinant(v0)
+    s0 = th.diag_embed(s0)
+    u1, s1, v1 = th.svd(actuations_1)
+    u1, v1 = positive_determinant(u1), positive_determinant(v1)
+    s1 = th.diag_embed(s1)
 
+    u0, s0, v0 = u0.cpu().numpy(), s0.cpu().numpy(), v0.cpu().numpy()
+    u1, s1, v1 = u1.cpu().numpy(), s1.cpu().numpy(), v1.cpu().numpy()
 
-def interpolate_svd(v0, v1, s0, s1, alpha):
-    actuations = np.zeros((v0.shape[0], 3, 3))
-    for i in tqdm(range(v0.shape[0])):
-        delta_v, _ = Stiefel_Log(v0[i], v1[i], 1e-3)
+    actuations = np.zeros(actuations_0.shape)
+    for i in tqdm(range(actuations_0.shape[0])):
+        delta_u, _ = Stiefel_Log(u0[i], u1[i], 1e-3)
         delta_s = s1[i] - s0[i]
-        actuations[i] = Stiefel_Exp(v0[i], alpha * delta_v) @ (s0[i] + alpha * delta_s) @ Stiefel_Exp(v0[i], alpha * delta_v).T
-    return actuations
+        delta_v, _ = Stiefel_Log(v0[i], v1[i], 1e-3)
+        actuations[i] = Stiefel_Exp(u0[i], alpha * delta_u) @ (s0[i] + alpha * delta_s) @ Stiefel_Exp(v0[i], alpha * delta_v).T
+    return th.tensor(actuations).float().to(actuations_0.device)
+
 
 class ActuationPredictor(object):
 
@@ -96,13 +107,10 @@ class ActuationPredictor(object):
             with th.no_grad():
                 main_gradient = self.model.construct_jacobian(main_points)
                 secondary_gradient = self.secondary_model.construct_jacobian(secondary_points)
-            main_V, main_s, main_A = get_actuations(main_gradient)
-            main_V, main_s = main_V.cpu().numpy(), main_s.cpu().numpy()
-            secondary_V, secondary_s, _ = get_actuations(secondary_gradient)
-            secondary_V, secondary_s = secondary_V.cpu().numpy(), secondary_s.cpu().numpy()
+            _, _, main_A = get_actuations(main_gradient)
+            _, _, secondary_A = get_actuations(secondary_gradient)
 
-            flipped_A = interpolate_svd(main_V[flipped_points.cpu().numpy()], secondary_V, main_s, secondary_s, 0.5)
-            flipped_A = th.tensor(flipped_A).float().to(self.device)
+            flipped_A = interpolate_actuations(main_A[flipped_points], secondary_A, 0.8)
             self.A[~flipped_points] = main_A[~flipped_points]
             self.A[flipped_points] = flipped_A
             A_sym = self.A.clone()
