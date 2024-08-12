@@ -30,10 +30,10 @@ def get_actuations(deformation_gradient):
 
 
 def flip_actuations(V, s, flipped_points):
-    V_sym = V.copy()
-    s_sym = s.copy()
+    V_sym = V.clone()
+    s_sym = s.clone()
     V_sym[flipped_points, 0, :] *= -1
-    A_sym = V_sym @ s_sym @ np.transpose(V_sym, [0, 2, 1])
+    A_sym = V_sym @ s_sym @ th.transpose(V_sym, [0, 2, 1])
     return A_sym
 
 
@@ -81,14 +81,20 @@ class ActuationPredictor(object):
 
     def __init__(self, model_path, config_path, 
                  tetmesh_path, tetmesh_contour_path, tetmesh_reflected_deformed_path, 
+                 interpolation=None, alpha=0.5,
                  secondary_model_path=None, device='cpu'):
         self.model_path = model_path
         self.config_path = config_path
         self.tetmesh_path = tetmesh_path
         self.tetmesh_contour_path = tetmesh_contour_path
         self.tetmesh_reflected_deformed_path = tetmesh_reflected_deformed_path
+        self.interpolation = interpolation
+        self.alpha = alpha
         self.secondary_model_path = secondary_model_path
         self.device = device
+
+        assert self.interpolation in [None, 'slerp', 'stiefel'], 'Invalid interpolation method, only slerp and stiefel are supported'
+        assert 0.0 <= self.alpha <= 1.0, 'Alpha must be in the range [0, 1]'
 
         self.__load()
 
@@ -116,10 +122,9 @@ class ActuationPredictor(object):
         with th.no_grad():
             deformation_gradient = self.model.construct_jacobian(new_points)
         V, s, A = get_actuations(deformation_gradient)
-        V, s, A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
         A_sym = flip_actuations(V, s, flipped_points)
-        return th.tensor(A).float().to(self.device), th.tensor(A_sym).float().to(self.device)
+        return th.tensor(A).float().to(self.device), A_sym
 
     def __predict_with_secondary(self, points):
         flipped_points = points[:, 0] > th.mean(th.tensor(self.nodes[:, 0]).to(self.device))
@@ -135,10 +140,19 @@ class ActuationPredictor(object):
         main_V, main_s, main_A = get_actuations(main_gradient)
         secondary_V, secondary_s, secondary_A = get_actuations(secondary_gradient)
 
-        flipped_A = interpolate_slerp(main_V[flipped_points], secondary_V, main_s[flipped_points], secondary_s, 0.3)
+        if self.interpolation == 'slerp' and self.alpha != 0.0 and self.alpha != 1.0:
+            flipped_A = interpolate_slerp(main_V[flipped_points], secondary_V, main_s[flipped_points], secondary_s, self.alpha)
+        elif self.interpolation == 'stiefel' and self.alpha != 0.0 and self.alpha != 1.0:
+            flipped_A = interpolate_stiefel(main_A[flipped_points], secondary_A, self.alpha)
+        elif self.interpolation is None or self.alpha == 1.0:
+            flipped_A = secondary_A
+        elif self.alpha == 0.0:
+            flipped_A = main_A[flipped_points]
+        else:
+            raise ValueError(f'Invalid interpolation method: {self.interpolation}, only slerp and stiefel are supported')
+        
         A[~flipped_points] = main_A[~flipped_points]
         A[flipped_points] = flipped_A
-
         A_sym = A.clone()
         return A, A_sym
 

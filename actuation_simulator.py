@@ -25,6 +25,8 @@ def main(args):
                                              args.contour_path, 
                                              args.reflected_contour_path, 
                                              secondary_model_path=args.secondary_actuation_model_path, 
+                                             interpolation=args.interpolation,
+                                             alpha=args.alpha,
                                              device=device)
     actuation_predictor.visualize()
     dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path,
@@ -79,6 +81,8 @@ if __name__ == '__main__':
     parser.add_argument('--contour_path', type=str, required=True)
     parser.add_argument('--reflected_contour_path', type=str, required=True)
     parser.add_argument('--secondary_actuation_model_path', type=str, default=None)
+    parser.add_argument('--interpolation', type=str, default=None)
+    parser.add_argument('--alpha', type=float, default=1.0)
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)
