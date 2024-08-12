@@ -21,7 +21,7 @@ def main(args):
     print(f'Using device: {device}')
 
     dataset = INRDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path,
-                             num_samples=args.num_samples, device=device)
+                         sample=args.sample, num_samples=args.num_samples, device=device)
     dataset.visualize()
     
     model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
@@ -76,6 +76,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)
+
+    parser.add_argument('--sample', action='store_true')
 
     parser.add_argument('--train', action='store_true')
     parser.add_argument('--epochs', type=int, default=300)

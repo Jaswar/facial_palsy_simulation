@@ -29,8 +29,9 @@ def main(args):
                                              alpha=args.alpha,
                                              device=device)
     actuation_predictor.visualize()
-    dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path,
-                             actuation_predictor=actuation_predictor, num_samples=args.num_samples, device=device)
+    dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path, 
+                               sample=args.sample, actuation_predictor=actuation_predictor, 
+                               num_samples=args.num_samples, device=device)
     dataset.visualize()
     
     model = SimulatorModel(num_hidden_layers=config['num_hidden_layers'], 
@@ -86,6 +87,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)
+
+    parser.add_argument('--sample', action='store_true')
 
     parser.add_argument('--train', action='store_true')
     parser.add_argument('--epochs', type=int, default=100)

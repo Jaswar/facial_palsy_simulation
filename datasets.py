@@ -311,7 +311,6 @@ class SimulatorDataset(TetmeshDataset):
             # if sampling, it is necessary to recalculate the actuations
             # since the points are anywhere within the tetmesh
             _, self.epoch_actuations = self.actuation_predictor.predict(self.epoch_nodes, denormalize=True)
-            self.epoch_actuations = th.tensor(self.epoch_actuations).to(self.device)
 
     def __getitem__(self, idx):
         idx = super(SimulatorDataset, self).__getitem__(idx)        
