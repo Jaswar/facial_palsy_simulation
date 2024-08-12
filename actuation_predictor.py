@@ -95,47 +95,52 @@ class ActuationPredictor(object):
         self.surface_kdtree = KDTree(self.surface.points)
         self.nodes_kdtree = KDTree(self.nodes)
 
-
     def predict(self, points, denormalize=False):
-        if th.is_tensor(points):
-            points = points.cpu().numpy()
-
         if denormalize:
             points = points * (self.maxv - self.minv) + self.minv
+        
+        if self.secondary_model is None:
+            return self.__predict_symmetric(points)
+        else:
+            return self.__predict_with_secondary(points)
+    
+    def __predict_symmetric(self, points):
+        points = points.cpu().numpy()
 
         flipped_points = points[:, 0] > np.mean(self.nodes[:, 0])
-        if self.secondary_model is None:
-            new_points = points.copy()
-            new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
+        new_points = points.copy()
+        new_points[flipped_points] = self.__bary_transform(new_points[flipped_points])
 
-            new_points = th.tensor(new_points).float().to(self.device)
-            new_points = (new_points - self.minv) / (self.maxv - self.minv)
-            with th.no_grad():
-                deformation_gradient = self.model.construct_jacobian(new_points)
-            V, s, A = get_actuations(deformation_gradient)
-            self.V, self.s, self.A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
+        new_points = th.tensor(new_points).float().to(self.device)
+        new_points = (new_points - self.minv) / (self.maxv - self.minv)
+        with th.no_grad():
+            deformation_gradient = self.model.construct_jacobian(new_points)
+        V, s, A = get_actuations(deformation_gradient)
+        V, s, A = V.cpu().numpy(), s.cpu().numpy(), A.cpu().numpy()
 
-            A_sym = flip_actuations(self.V, self.s, flipped_points)
-        else:
-            flipped_points = th.tensor(flipped_points).to(self.device)
-            points = th.tensor(points).float().to(self.device)
-            points = (points - self.minv) / (self.maxv - self.minv)
-            main_points = points.clone()
-            secondary_points = points[flipped_points]
-            self.A = th.zeros((points.shape[0], 3, 3), device=self.device)
+        A_sym = flip_actuations(V, s, flipped_points)
+        return th.tensor(A).float().to(self.device), th.tensor(A_sym).float().to(self.device)
 
-            with th.no_grad():
-                main_gradient = self.model.construct_jacobian(main_points)
-                secondary_gradient = self.secondary_model.construct_jacobian(secondary_points)
-            main_V, main_s, main_A = get_actuations(main_gradient)
-            secondary_V, secondary_s, secondary_A = get_actuations(secondary_gradient)
+    def __predict_with_secondary(self, points):
+        flipped_points = points[:, 0] > th.mean(th.tensor(self.nodes[:, 0]).to(self.device))
 
-            flipped_A = interpolate_slerp(main_V[flipped_points], secondary_V, main_s[flipped_points], secondary_s, 0.3)
-            self.A[~flipped_points] = main_A[~flipped_points]
-            self.A[flipped_points] = flipped_A
-            A_sym = self.A.clone()
-        return self.A, A_sym
+        points = (points - self.minv) / (self.maxv - self.minv)
+        main_points = points.clone()
+        secondary_points = points[flipped_points]
+        A = th.zeros((points.shape[0], 3, 3), device=self.device)
 
+        with th.no_grad():
+            main_gradient = self.model.construct_jacobian(main_points)
+            secondary_gradient = self.secondary_model.construct_jacobian(secondary_points)
+        main_V, main_s, main_A = get_actuations(main_gradient)
+        secondary_V, secondary_s, secondary_A = get_actuations(secondary_gradient)
+
+        flipped_A = interpolate_slerp(main_V[flipped_points], secondary_V, main_s[flipped_points], secondary_s, 0.3)
+        A[~flipped_points] = main_A[~flipped_points]
+        A[flipped_points] = flipped_A
+
+        A_sym = A.clone()
+        return A, A_sym
 
     def __load(self):
         with open(self.config_path, 'r') as f:
@@ -185,13 +190,13 @@ class ActuationPredictor(object):
         return new_pos
 
     def visualize(self, points=None):
-        A, A_sym = self.predict(self.nodes)
+        A, A_sym = self.predict(th.tensor(self.nodes).float().to(self.device))
         self.__visualize(A, A_sym, points)
 
     def __visualize(self, A, A_sym, points=None):
-        _, s, _ = th.svd(th.tensor(A).float())
+        _, s, _ = th.svd(A)
         actuations = th.sum(s, dim=1)
-        _, s, _ = th.svd(th.tensor(A_sym).float())
+        _, s, _ = th.svd(A_sym)
         actuations_sym = th.sum(s, dim=1)
         actuations = actuations.cpu().numpy()
         actuations_sym = actuations_sym.cpu().numpy()

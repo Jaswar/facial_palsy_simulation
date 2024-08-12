@@ -265,7 +265,7 @@ class SimulatorDataset(TetmeshDataset):
 
         self.epoch_actuations = None
 
-        self.__read()
+        self.read()
 
         self.detect_skull()
         self.detect_jaw()
@@ -281,17 +281,12 @@ class SimulatorDataset(TetmeshDataset):
 
     def epilogue(self):
         super(SimulatorDataset, self).epilogue()
-        self.actuations = th.tensor(self.actuations).to(self.device).float()
+        _, self.actuations = self.actuation_predictor.predict(self.nodes, denormalize=True)
 
     def visualize(self):
         super(SimulatorDataset, self).visualize(
             [self.skull_mask, self.jaw_mask, self.tissue_mask, self.box_mask]
         )
-
-    def __read(self):
-        super(SimulatorDataset, self).read()
-        _, self.actuations = self.actuation_predictor.predict(self.nodes)
-        self.actuations = th.tensor(self.actuations).to(self.device).float()
 
     def __detect_box(self):
         self.box_mask = self.nodes[:, 2] < (np.min(self.nodes[:, 2]) + self.tol)
