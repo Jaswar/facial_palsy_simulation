@@ -136,7 +136,7 @@ def Stiefel_Exp(U0, Delta, metric_alpha=0.0):
 #------------------------------------------------------------------------------
 def Stiefel_Log(U0, U1, tau, metric_alpha=0.0):
 #------------------------------------------------------------------------------
-    print("Use algebraic Stiefel log, metric alpha = ",metric_alpha)
+    # print("Use algebraic Stiefel log, metric alpha = ",metric_alpha)
     if abs(metric_alpha) < 1.0e-13:
         # canonical metric: use algebraic Stiefel log  
         Delta, conv = Stiefel_Log_alg(U0, U1, tau)
