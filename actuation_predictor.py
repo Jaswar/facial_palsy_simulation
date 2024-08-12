@@ -8,7 +8,7 @@ import json
 from scipy.spatial import KDTree
 from stiefel_exp.Stiefel_Exp_Log import Stiefel_Exp, Stiefel_Log
 from tqdm import tqdm
-import pyquaternion as pq
+from pytorch3d.transforms import matrix_to_quaternion, quaternion_to_matrix
 
 
 def positive_determinant(matrix):
@@ -58,23 +58,24 @@ def interpolate_stiefel(actuations_0, actuations_1, alpha):
     return th.tensor(actuations).float().to(actuations_0.device)
 
 
-def interpolate_slerp(v0, v1, s0, s1, alpha):
-    device = v0.device
-    v0, s0 = v0.cpu().numpy(), s0.cpu().numpy()
-    v1, s1 = v1.cpu().numpy(), s1.cpu().numpy()
+# from https://discuss.pytorch.org/t/help-regarding-slerp-function-for-generative-model-sampling/32475/4
+def slerp(low, high, alpha):
+    low_norm = low / th.norm(low, dim=1, keepdim=True)
+    high_norm = high / th.norm(high, dim=1, keepdim=True)
+    omega = th.acos((low_norm * high_norm).sum(1))
+    so = th.sin(omega)
+    res = (th.sin((1.0 - alpha) * omega) / so).unsqueeze(1) * low + (th.sin(alpha * omega) / so).unsqueeze(1) * high
+    return res
 
-    v_out = np.zeros(v0.shape)
-    for i in tqdm(range(v0.shape[0])):
-        quaternion_0 = pq.Quaternion(matrix=v0[i], atol=1e-5)
-        quaternion_1 = pq.Quaternion(matrix=v1[i], atol=1e-5)
-        end = pq.Quaternion.slerp(quaternion_0, quaternion_1, alpha)
-        v_out[i] = end.rotation_matrix
+
+def interpolate_slerp(v0, v1, s0, s1, alpha):
+    q0 = matrix_to_quaternion(v0)
+    q1 = matrix_to_quaternion(v1)
+    q_out = slerp(q0, q1, alpha)
+    v_out = quaternion_to_matrix(q_out)
     s_out = s0 + alpha * (s1 - s0)
-    s_out = th.tensor(s_out).float().to(device)
-    v_out = th.tensor(v_out).float().to(device)
     A_out = th.bmm(v_out, th.bmm(s_out, v_out.permute(0, 2, 1)))
     return A_out
-
 
 
 class ActuationPredictor(object):

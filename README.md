@@ -33,7 +33,7 @@ python flip_surface.py --neutral_surface_path=data/tetmesh_face_surface.obj \
 Next, to simulate the generated actuations, the following script must be run:
 
 ```bash
-python actuation_simulator.py --tetmesh_path=data/tetmesh \
+PYTHONPATH=. python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --jaw_path=data/jaw.obj \
     --skull_path=data/skull.obj \
     --neutral_path=data/tetmesh_face_surface.obj \
