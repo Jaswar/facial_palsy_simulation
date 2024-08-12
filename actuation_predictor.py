@@ -8,6 +8,7 @@ import json
 from scipy.spatial import KDTree
 from stiefel_exp.Stiefel_Exp_Log import Stiefel_Exp, Stiefel_Log
 from tqdm import tqdm
+import pyquaternion as pq
 
 
 def positive_determinant(matrix):
@@ -37,7 +38,7 @@ def flip_actuations(V, s, flipped_points):
 
 
 # from https://www.researchgate.net/publication/330165271_Parametric_Model_Reduction_via_Interpolating_Orthonormal_Bases
-def interpolate_actuations(actuations_0, actuations_1, alpha):
+def interpolate_stiefel(actuations_0, actuations_1, alpha):
     u0, s0, v0 = th.svd(actuations_0)
     u0, v0 = positive_determinant(u0), positive_determinant(v0)
     s0 = th.diag_embed(s0)
@@ -55,6 +56,25 @@ def interpolate_actuations(actuations_0, actuations_1, alpha):
         delta_v, _ = Stiefel_Log(v0[i], v1[i], 1e-3)
         actuations[i] = Stiefel_Exp(u0[i], alpha * delta_u) @ (s0[i] + alpha * delta_s) @ Stiefel_Exp(v0[i], alpha * delta_v).T
     return th.tensor(actuations).float().to(actuations_0.device)
+
+
+def interpolate_slerp(v0, v1, s0, s1, alpha):
+    device = v0.device
+    v0, s0 = v0.cpu().numpy(), s0.cpu().numpy()
+    v1, s1 = v1.cpu().numpy(), s1.cpu().numpy()
+
+    v_out = np.zeros(v0.shape)
+    for i in tqdm(range(v0.shape[0])):
+        quaternion_0 = pq.Quaternion(matrix=v0[i], atol=1e-5)
+        quaternion_1 = pq.Quaternion(matrix=v1[i], atol=1e-5)
+        end = pq.Quaternion.slerp(quaternion_0, quaternion_1, alpha)
+        v_out[i] = end.rotation_matrix
+    s_out = s0 + alpha * (s1 - s0)
+    s_out = th.tensor(s_out).float().to(device)
+    v_out = th.tensor(v_out).float().to(device)
+    A_out = th.bmm(v_out, th.bmm(s_out, v_out.permute(0, 2, 1)))
+    return A_out
+
 
 
 class ActuationPredictor(object):
@@ -107,10 +127,10 @@ class ActuationPredictor(object):
             with th.no_grad():
                 main_gradient = self.model.construct_jacobian(main_points)
                 secondary_gradient = self.secondary_model.construct_jacobian(secondary_points)
-            _, _, main_A = get_actuations(main_gradient)
-            _, _, secondary_A = get_actuations(secondary_gradient)
+            main_V, main_s, main_A = get_actuations(main_gradient)
+            secondary_V, secondary_s, secondary_A = get_actuations(secondary_gradient)
 
-            flipped_A = interpolate_actuations(main_A[flipped_points], secondary_A, 0.8)
+            flipped_A = interpolate_slerp(main_V[flipped_points], secondary_V, main_s[flipped_points], secondary_s, 0.3)
             self.A[~flipped_points] = main_A[~flipped_points]
             self.A[flipped_points] = flipped_A
             A_sym = self.A.clone()
