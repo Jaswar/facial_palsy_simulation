@@ -32,8 +32,8 @@ def get_actuations(deformation_gradient):
 def flip_actuations(V, s, flipped_points):
     V_sym = V.clone()
     s_sym = s.clone()
-    V_sym[flipped_points, 0, :] *= -1
-    A_sym = V_sym @ s_sym @ th.transpose(V_sym, [0, 2, 1])
+    V_sym[th.tensor(flipped_points).to(V.device), 0, :] *= -1
+    A_sym = V_sym @ s_sym @ th.transpose(V_sym, 2, 1)
     return A_sym
 
 
@@ -95,6 +95,7 @@ class ActuationPredictor(object):
 
         assert self.interpolation in [None, 'slerp', 'stiefel'], 'Invalid interpolation method, only slerp and stiefel are supported'
         assert 0.0 <= self.alpha <= 1.0, 'Alpha must be in the range [0, 1]'
+        assert not self.interpolation or self.secondary_model_path is not None, 'Interpolation requires a secondary model'
 
         self.__load()
 
@@ -124,7 +125,7 @@ class ActuationPredictor(object):
         V, s, A = get_actuations(deformation_gradient)
 
         A_sym = flip_actuations(V, s, flipped_points)
-        return th.tensor(A).float().to(self.device), A_sym
+        return A, A_sym
 
     def __predict_with_secondary(self, points):
         flipped_points = points[:, 0] > th.mean(th.tensor(self.nodes[:, 0]).to(self.device))
