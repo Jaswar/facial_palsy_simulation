@@ -47,8 +47,8 @@ def main(args):
     print('Loading high res surface')
     high_res_surface = pv.PolyData(args.high_res_path)
 
-    neutral_projection = surface.project_points_to_plane()
-    high_res_projection = high_res_surface.project_points_to_plane()
+    neutral_projection = surface.copy()
+    high_res_projection = high_res_surface.copy()
     neutral_projection.points[:, 2] = 0.
     high_res_projection.points[:, 2] = 0.
 
