@@ -5,6 +5,7 @@ from models import SimulatorModel
 import igl
 import argparse
 import json
+from obj_parser import ObjParser
 
 
 def detect_components(lines):
@@ -43,6 +44,9 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
+    parser = ObjParser()  # needed for the MRGB values
+    _, _, _, _, rgb_values = parser.parse(args.high_res_path, progress_bar=True, mrgb_only=True)
+
     surface = pv.PolyData(args.neutral_path)
     print('Loading high res surface')
     high_res_surface = pv.PolyData(args.high_res_path)
@@ -79,6 +83,7 @@ def main(args):
     d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
     in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d)
     high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
+    rgb_values = rgb_values[in_bounds]
     print('Points removed')
 
     maxv = np.max(surface.points)
@@ -103,7 +108,8 @@ def main(args):
     high_res_surface.points = outputs    
 
     plot = pv.Plotter()
-    plot.add_mesh(high_res_surface, color='lightblue')
+    high_res_surface['rgb'] = rgb_values
+    plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
     plot.show()
 
 
