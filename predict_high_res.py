@@ -7,6 +7,35 @@ import argparse
 import json
 
 
+def detect_components(lines):
+    graph = {}
+    for (a, b) in lines:
+        if a not in graph:
+            graph[a] = []
+        if b not in graph:
+            graph[b] = []
+        graph[a].append(b)
+        graph[b].append(a)
+
+    components = []
+    visited = set()
+    for node in graph:
+        if node in visited:
+            continue
+        component = []
+        stack = [node]
+        while len(stack) > 0:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.append(node)
+            stack.extend(graph[node])
+        components.append(component)
+    components = sorted(components, key=lambda x: len(x), reverse=True)
+    return components
+
+
 def main(args):
     if th.cuda.is_available():
         device = 'cuda'
@@ -23,10 +52,31 @@ def main(args):
     neutral_projection.points[:, 2] = 0.
     high_res_projection.points[:, 2] = 0.
 
-    print('Removing points')
+    edges = neutral_projection.extract_feature_edges(boundary_edges=True, 
+                                                     non_manifold_edges=False, 
+                                                     manifold_edges=False, 
+                                                     feature_edges=False)
+    # the format of lines is (n, a, b) where n is the number of points in the line and a, b are the indices of the points
+    # they are all stacked into a single array, so we need to seperate them
+    lines = [(edges.lines[i + 1], edges.lines[i + 2]) for i in range(0, len(edges.lines), 3)]
+    components = detect_components(lines)
+    mouth_component = components[1]  # 0th component is the outer boundary
+    # detect the bounding box of the mouth component
+    max_x = np.max(edges.points[mouth_component, 0])
+    min_x = np.min(edges.points[mouth_component, 0])
+    max_y = np.max(edges.points[mouth_component, 1])
+    min_y = np.min(edges.points[mouth_component, 1])
+
+    mouth_roi = np.logical_and(high_res_projection.points[:, 0] >= min_x, high_res_projection.points[:, 0] <= max_x)
+    mouth_roi = np.logical_and(mouth_roi, high_res_projection.points[:, 1] >= min_y)
+    mouth_roi = np.logical_and(mouth_roi, high_res_projection.points[:, 1] <= max_y)
+
+    print('Removing points')    
     dp, _, _ = igl.point_mesh_squared_distance(high_res_projection.points, neutral_projection.points, neutral_projection.regular_faces)
+    # only points in the mouth area that are too far away should be removed
+    proj_in_bounds = np.logical_or(dp < 1e-3, ~mouth_roi)
     d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
-    in_bounds = np.logical_and(dp < 1e-3, d3d < args.tol_3d)
+    in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d)
     high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
     print('Points removed')
 
