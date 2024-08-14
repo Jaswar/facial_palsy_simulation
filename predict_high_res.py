@@ -60,6 +60,7 @@ def main(args):
     # they are all stacked into a single array, so we need to seperate them
     lines = [(edges.lines[i + 1], edges.lines[i + 2]) for i in range(0, len(edges.lines), 3)]
     components = detect_components(lines)
+    assert len(components) == 2, f'Expected 2 components (outline and mouth), found {len(components)}'
     mouth_component = components[1]  # 0th component is the outer boundary
     # detect the bounding box of the mouth component
     max_x = np.max(edges.points[mouth_component, 0])
