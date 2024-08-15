@@ -71,8 +71,6 @@ if __name__ == '__main__':
     parser.add_argument('--tetmesh_path', type=str, required=True)
     parser.add_argument('--jaw_path', type=str, required=True)
     parser.add_argument('--skull_path', type=str, required=True)
-    parser.add_argument('--neutral_path', type=str, required=True)
-    parser.add_argument('--deformed_path', type=str, required=True)
     parser.add_argument('--predicted_jaw_path', type=str, default=None)
     parser.add_argument('--config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)

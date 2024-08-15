@@ -36,8 +36,6 @@ Next, to simulate the generated actuations, the following script must be run:
 PYTHONPATH=. python actuation_simulator.py --tetmesh_path=data/tetmesh \
     --jaw_path=data/jaw.obj \
     --skull_path=data/skull.obj \
-    --neutral_path=data/tetmesh_face_surface.obj \
-    --deformed_path=data/ground_truths/deformed_surface_017.obj \
     --predicted_jaw_path=data/predicted_jaw.npy \
     --main_actuation_model_path=checkpoints/best_model_017_pair_healthy.pth \
     --secondary_actuation_model_path=checkpoints/best_model_017_pair_unhealthy.pth \
