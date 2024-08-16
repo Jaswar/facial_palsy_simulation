@@ -1,3 +1,5 @@
+cd ..
+
 source venv/bin/activate
 
 for i in $(seq 1 1000); do

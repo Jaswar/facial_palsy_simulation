@@ -106,17 +106,32 @@ def main(args):
     outputs = model.predict(inputs).cpu().numpy()
     outputs = outputs * (maxv - minv) + minv
     high_res_surface.points = outputs    
-
-    plot = pv.Plotter()
     high_res_surface['rgb'] = rgb_values
-    plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
-    plot.show()
+
+    if args.original_deformation_path is not None:
+        original_deformation = pv.PolyData(args.original_deformation_path)
+        _, _, _, _, original_rgb_values = parser.parse(args.original_deformation_path, progress_bar=True, mrgb_only=True)
+        # the file can be malformed so we need to make sure the number of points is the same
+        original_rgb_values = original_rgb_values[:original_deformation.points.shape[0]]
+        original_deformation['rgb'] = original_rgb_values
+        plot = pv.Plotter(shape=(1, 2))
+        plot.subplot(0, 0)
+        plot.add_mesh(original_deformation, scalars='rgb', rgb=True)
+        plot.subplot(0, 1)
+        plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
+        plot.link_views()
+        plot.show()
+    else:
+        plot = pv.Plotter()
+        plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
+        plot.show()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--high_res_path', type=str, required=True)
+    parser.add_argument('--original_deformation_path', type=str, default=None)
     parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--tol_3d', type=float, default=20.0)

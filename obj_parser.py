@@ -38,6 +38,8 @@ class ObjParser(object):
     def __parse_mrgb(self, mrgb_line):
         mrgb_line = mrgb_line.strip().split(' ')[1]
         mrgb_line = mrgb_line[:8*64]
+        length = (len(mrgb_line) // 8) * 8
+        mrgb_line = mrgb_line[:length]  # make sure the length is a multiple of 8
         rgb_values = [mrgb_line[i:i+8] for i in range(0, len(mrgb_line), 8)]
         rgb_values = [[int(color[i:i+2], 16) for i in range(2, 8, 2)] for color in rgb_values]
         # rgb_values = [[color[0] & color[i] for i in range(1, 4)] for color in rgb_values]
