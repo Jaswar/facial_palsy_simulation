@@ -1,6 +1,6 @@
 {
-    "num_hidden_layers": 9,
-    "hidden_size": 64,
+    "num_hidden_layers": 5,
+    "hidden_size": 256,
     "learning_rate": 0.0005752928352406232,
     "min_lr": 6.079299789748567e-08,
     "batch_size": 2048,

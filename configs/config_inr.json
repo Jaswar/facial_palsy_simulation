@@ -1,12 +1,12 @@
 {
-    "num_hidden_layers": 9,
-    "hidden_size": 64,
-    "learning_rate": 0.00045505766167674896,
-    "min_lr": 4.185126169465809e-08,
+    "num_hidden_layers": 5,
+    "hidden_size": 256,
+    "learning_rate": 0.0008457023065073738,
+    "min_lr": 7.378000130054833e-06,
     "batch_size": 4096,
     "fourier_features": 8,
     "optimizer": "adam",
-    "w_surface": 10.0,
+    "w_surface": 15.0,
     "w_deformation": 0.02,
     "w_jaw": 1.0,
     "w_skull": 2.0

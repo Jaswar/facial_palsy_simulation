@@ -52,7 +52,7 @@ with the `predict_high_res.py` file in the following way:
 
 ```bash
 python predict_high_res.py --neutral_path=data/tetmesh_face_surface.obj \
-    --high_res_path=../medusa_scans/rawMeshes/take_001.obj \
+    --high_res_path=../medusa_scans/rawMeshes_ply/take_001.ply \
     --model_path=checkpoints/best_model_simulator_017_pair.pth
 ```
 
