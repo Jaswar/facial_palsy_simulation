@@ -44,11 +44,9 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
-    parser = ObjParser()  # needed for the MRGB values
-    _, _, _, _, rgb_values = parser.parse(args.high_res_path, progress_bar=True, mrgb_only=True)
-
     surface = pv.PolyData(args.neutral_path)
     print('Loading high res surface')
+    # the color information will be stored in the 'RGB' array
     high_res_surface = pv.PolyData(args.high_res_path)
 
     neutral_projection = surface.copy()
@@ -83,7 +81,6 @@ def main(args):
     d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
     in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d)
     high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
-    rgb_values = rgb_values[in_bounds]
     print('Points removed')
 
     maxv = np.max(surface.points)
@@ -106,24 +103,20 @@ def main(args):
     outputs = model.predict(inputs).cpu().numpy()
     outputs = outputs * (maxv - minv) + minv
     high_res_surface.points = outputs    
-    high_res_surface['rgb'] = rgb_values
 
     if args.original_deformation_path is not None:
         original_deformation = pv.PolyData(args.original_deformation_path)
-        _, _, _, _, original_rgb_values = parser.parse(args.original_deformation_path, progress_bar=True, mrgb_only=True)
         # the file can be malformed so we need to make sure the number of points is the same
-        original_rgb_values = original_rgb_values[:original_deformation.points.shape[0]]
-        original_deformation['rgb'] = original_rgb_values
         plot = pv.Plotter(shape=(1, 2))
         plot.subplot(0, 0)
-        plot.add_mesh(original_deformation, scalars='rgb', rgb=True)
+        plot.add_mesh(original_deformation, scalars='RGB', rgb=True)
         plot.subplot(0, 1)
-        plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
+        plot.add_mesh(high_res_surface, scalars='RGB', rgb=True)
         plot.link_views()
         plot.show()
     else:
         plot = pv.Plotter()
-        plot.add_mesh(high_res_surface, scalars='rgb', rgb=True)
+        plot.add_mesh(high_res_surface, scalars='RGB', rgb=True)
         plot.show()
 
 
