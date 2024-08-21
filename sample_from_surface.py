@@ -53,10 +53,10 @@ def main():
     n_samples = 1000000
     neutral_surface = pv.PolyData('data/tetmesh_face_surface.obj')
     neutral_surface = neutral_surface.clean()
-    deformed_surface = pv.PolyData('data/ground_truths/deformed_surface_017.obj')
+    deformed_surface = pv.PolyData('data/ground_truths/deformed_surface_003.obj')
     deformed_surface = deformed_surface.clean()
     neutral_high_res_surface = pv.PolyData('../medusa_scans/rawMeshes_ply/take_001.ply')
-    deformed_high_res_surface = pv.PolyData('../medusa_scans/rawMeshes_ply/take_018.ply')
+    deformed_high_res_surface = pv.PolyData('../medusa_scans/rawMeshes_ply/take_004.ply')
     print('Loaded surfaces')
 
     pc_fix = PointCloud(deformed_surface.points, columns=['x', 'y', 'z'])
@@ -69,7 +69,6 @@ def main():
 
     probabilties = get_probabilities(neutral_surface.points, neutral_surface.regular_faces)    
     sampled_vertices, sampled_faces, bary_coords = sample_from_surface(neutral_surface.points, neutral_surface.regular_faces, probabilties, n_samples)
-    values = sampled_vertices[:, 0]
 
     neutral_kdtree = KDTree(neutral_high_res_surface.points)
     _, neutral_indices = neutral_kdtree.query(sampled_vertices)
@@ -85,15 +84,15 @@ def main():
     print('Sampled deformed points')
 
     sampled_vertices = pv.PolyData(sampled_vertices)
-    sampled_vertices['RGB'] = values # neutral_high_res_surface['RGB'][neutral_indices]
+    sampled_vertices['RGB'] = neutral_high_res_surface['RGB'][neutral_indices]
     deformed_vertices = pv.PolyData(deformed_vertices)
-    deformed_vertices['RGB'] = values # deformed_high_res_surface['RGB'][deformed_indices]
+    deformed_vertices['RGB'] = deformed_high_res_surface['RGB'][deformed_indices]
 
     plot = pv.Plotter(shape=(1, 2))
     plot.subplot(0, 0)
-    plot.add_points(sampled_vertices, scalars='RGB', cmap='RdBu')
+    plot.add_points(sampled_vertices, scalars='RGB', rgb=True)
     plot.subplot(0, 1)
-    plot.add_points(deformed_vertices, scalars='RGB', cmap='RdBu')
+    plot.add_points(deformed_vertices, scalars='RGB', rgb=True)
     plot.link_views()
     plot.show()
 

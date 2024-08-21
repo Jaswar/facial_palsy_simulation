@@ -5,6 +5,7 @@ from tetmesh import Tetmesh
 import pyvista as pv
 import igl
 from scipy.spatial import KDTree
+from simpleicp import PointCloud, SimpleICP
 
 
 # volume of the tetrahedron is 1/6th of the volume of the parallelepiped
@@ -17,10 +18,54 @@ def get_tet_volume(nodes, elements):
     return np.abs(np.einsum('ij,ij->i', v0 - v3, np.cross(v1 - v3, v2 - v3))) / 6
 
 
-def compute_probabilities(nodes, elements):
+def compute_tet_probabilities(nodes, elements):
     volumes = get_tet_volume(nodes, elements)
     probabilities = volumes / np.sum(volumes)
     return probabilities
+
+
+def get_triangle_area(vertices, faces):
+    # Calculate the area of each triangle
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
+    e0 = v1 - v0
+    e1 = v2 - v0
+    cross = np.cross(e0, e1)
+    area = 0.5 * np.linalg.norm(cross, axis=1)
+    return area
+
+
+def compute_triangle_probabilities(vertices, faces):
+    areas = get_triangle_area(vertices, faces)
+    probabilities = areas / np.sum(areas)
+    return probabilities
+
+
+# uniform sampling on a simplex, see for example: http://blog.geomblog.org/2005/10/sampling-from-simplex.html
+# this gives barycentric coordinates, which can be used to sample points on a triangle
+def sample_on_simplex(n_samples):
+    samples = np.random.rand(n_samples, 3)
+    samples = -np.log(samples)
+    samples = samples / np.sum(samples, axis=1)[:, None]
+    return samples
+
+
+def barycentric_sample(vertices, coords):
+    v0 = vertices[:, 0]
+    v1 = vertices[:, 1]
+    v2 = vertices[:, 2]
+    e0 = v1 - v0
+    e1 = v2 - v0
+    return v0 + coords[:, 0][:, None] * e0 + coords[:, 1][:, None] * e1
+
+
+def sample_from_surface(vertices, faces, probabilities, n_samples):
+    coords = sample_on_simplex(n_samples)
+    face_indices = np.random.choice(faces.shape[0], n_samples, p=probabilities)
+    face_vertices = vertices[faces[face_indices]]
+    sampled = barycentric_sample(face_vertices, coords)
+    return sampled, faces[face_indices], coords
 
 
 # based on https://www.researchgate.net/publication/2461576_Generating_Random_Points_in_a_Tetrahedron
@@ -120,7 +165,7 @@ class TetmeshDataset(th.utils.data.Dataset):
     def read(self):
         self.nodes, self.elements, _ = Tetmesh.read_tetgen_file(self.tetmesh_path)
         self.deformed_nodes = self.nodes.copy()
-        self.probabilities = compute_probabilities(self.nodes, self.elements)
+        self.tet_probabilities = compute_tet_probabilities(self.nodes, self.elements)
 
         self.jaw = pv.read(self.jaw_path)
         self.jaw = self.jaw.clean()
@@ -146,7 +191,7 @@ class TetmeshDataset(th.utils.data.Dataset):
         if th.is_tensor(num_nodes):
             num_nodes = num_nodes.cpu().item()
 
-        idx = np.random.choice(self.elements.shape[0], num_nodes, p=self.probabilities)
+        idx = np.random.choice(self.elements.shape[0], num_nodes, p=self.tet_probabilities)
         sampled_elements = self.elements[idx]
         sampled_points = sample_from_tet(self.nodes, sampled_elements)
         return sampled_points
@@ -225,6 +270,21 @@ class INRDataset(TetmeshDataset):
         self.deformed_surface = self.deformed_surface.clean(point_merging=False)
         self.deformed_surface = pv.PolyData(self.deformed_surface)
 
+        self.neutral_high_res_surface = pv.PolyData('../medusa_scans/rawMeshes_ply/take_001.ply')
+        self.deformed_high_res_surface = pv.PolyData('../medusa_scans/rawMeshes_ply/take_004.ply')
+
+        pc_fix = PointCloud(self.deformed_surface.points, columns=['x', 'y', 'z'])
+        pc_mov = PointCloud(self.deformed_high_res_surface.points, columns=['x', 'y', 'z'])
+
+        icp = SimpleICP()
+        icp.add_point_clouds(pc_fix, pc_mov)
+        _, self.deformed_high_res_surface.points, _, _ = icp.run()
+
+        self.triangle_probabilities = compute_triangle_probabilities(self.neutral_surface.points, self.neutral_surface.regular_faces)
+
+        self.neutral_kdtree = KDTree(self.neutral_high_res_surface.points)
+        self.deformed_kdtree = KDTree(self.deformed_high_res_surface.points)
+
     def __detect_surface(self):
         kdtree = KDTree(self.nodes)
         _, indices = kdtree.query(self.neutral_surface.points)
@@ -241,6 +301,32 @@ class INRDataset(TetmeshDataset):
         self.mask[self.skull_mask] = INRDataset.SKULL_MASK
         self.mask[self.jaw_mask] = INRDataset.JAW_MASK
         self.mask[self.surface_mask] = INRDataset.SURFACE_MASK
+
+    def __sample_surface(self, num_samples):
+        if th.is_tensor(num_samples):
+            num_samples = num_samples.cpu().item()
+
+        sampled_vertices, sampled_faces, bary_coords = sample_from_surface(self.neutral_surface.points, self.neutral_surface.regular_faces, self.triangle_probabilities, num_samples)
+
+        _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
+        sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
+
+        deformed_vertices = self.deformed_surface.points[sampled_faces]
+        deformed_vertices = barycentric_sample(deformed_vertices, bary_coords)
+
+        _, deformed_vertices = self.deformed_kdtree.query(deformed_vertices)
+        deformed_vertices = self.deformed_high_res_surface.points[deformed_vertices]
+
+        sampled_vertices = th.tensor(sampled_vertices).to(self.device).float()
+        deformed_vertices = th.tensor(deformed_vertices).to(self.device).float()
+        sampled_vertices = (sampled_vertices - self.minv) / (self.maxv - self.minv)
+        deformed_vertices = (deformed_vertices - self.minv) / (self.maxv - self.minv)
+        return sampled_vertices, deformed_vertices
+
+    def prepare_for_epoch(self):
+        super(INRDataset, self).prepare_for_epoch()
+        where_surface = self.epoch_mask == INRDataset.SURFACE_MASK
+        self.epoch_nodes[where_surface], self.epoch_targets[where_surface] = self.__sample_surface(where_surface.sum())
     
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)
