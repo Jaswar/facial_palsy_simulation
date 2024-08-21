@@ -19,7 +19,7 @@ def main(args):
     dataset = INRDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.neutral_path, args.deformed_path, device=device)
 
     for file in os.listdir(args.checkpoints_path):
-        if file.endswith('.pth') and 'sim' in file:
+        if file.endswith('.pth') and 'sim' in file and '31' in file:
             print(f'Visualizing {file}')
             config_path = os.path.join(args.checkpoints_path, file.replace('.pth', '.json').replace('model', 'config'))
             with open(config_path, 'r') as f:

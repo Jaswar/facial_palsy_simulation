@@ -13,13 +13,13 @@ from common import get_optimizer
 def sample_configuration(simulator):
     if simulator:
         config = {
-            'num_hidden_layers': np.random.randint(3, 12),
-            'hidden_size': 2 ** np.random.randint(3, 10),
+            'num_hidden_layers': 5, # np.random.randint(3, 12),
+            'hidden_size': 256, # 2 ** np.random.randint(3, 10),
             'learning_rate': 10 ** np.random.uniform(-6, -2),
             'min_lr': 10 ** np.random.uniform(-8, -4),
             'batch_size': 2 ** np.random.randint(10, 14),
-            'fourier_features': np.random.randint(5, 20),
-            'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
+            'fourier_features': 8, # np.random.randint(5, 20),
+            'optimizer': np.random.choice(['adam']),
             'w_fixed': 10 ** np.random.uniform(-1., 1.),
             'w_energy': 10 ** np.random.uniform(-1., 1.),
         }
@@ -32,10 +32,10 @@ def sample_configuration(simulator):
             'batch_size': 2 ** np.random.randint(10, 14),
             'fourier_features': 8, #np.random.randint(5, 20),
             'optimizer': np.random.choice(['adam', 'rmsprop', 'sgd']),
-            'w_surface': 15.0, # 10 ** np.random.uniform(-1., 2.),
-            'w_deformation': 0.02, # 10 ** np.random.uniform(-3., -1.),
-            'w_jaw': 1.0, # 10 ** np.random.uniform(-1., 1.),
-            'w_skull': 2.0, # 10 ** np.random.uniform(-1., 1.),
+            'w_surface': 10 ** np.random.uniform(-1., 2.),
+            'w_deformation':  10 ** np.random.uniform(-3., -1.),
+            'w_jaw': 10 ** np.random.uniform(-1., 1.),
+            'w_skull': 10 ** np.random.uniform(-1., 1.),
         }
     return config
 
@@ -119,7 +119,7 @@ def main(args):
     else:
         actuation_predictor = ActuationPredictor(args.main_actuation_model_path, args.inr_config_path, args.tetmesh_path, args.contour_path, args.reflected_contour_path, 
                                                  secondary_model_path=args.secondary_actuation_model_path, device=device)
-        dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path, actuation_predictor, device=device)
+        dataset = SimulatorDataset(args.tetmesh_path, args.jaw_path, args.skull_path, args.predicted_jaw_path, actuation_predictor, device=device, sample=True)
     random_search(dataset, args.model_path, args.config_path, args.predicted_jaw_path, args.budget, args.simulator, args.num_runs, pretrained_model_path)
 
 
