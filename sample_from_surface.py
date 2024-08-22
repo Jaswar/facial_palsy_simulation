@@ -88,11 +88,16 @@ def main():
     deformed_vertices = pv.PolyData(deformed_vertices)
     deformed_vertices['RGB'] = deformed_high_res_surface['RGB'][deformed_indices]
 
-    plot = pv.Plotter(shape=(1, 2))
+    displacements = np.linalg.norm(deformed_vertices.points - sampled_vertices.points, axis=1)
+    displacements = np.log(displacements)
+
+    plot = pv.Plotter(shape=(1, 3))
     plot.subplot(0, 0)
-    plot.add_points(sampled_vertices, scalars='RGB', rgb=True)
+    plot.add_points(sampled_vertices.copy(), scalars='RGB', rgb=True)
     plot.subplot(0, 1)
-    plot.add_points(deformed_vertices, scalars='RGB', rgb=True)
+    plot.add_points(deformed_vertices.copy(), scalars='RGB', rgb=True)
+    plot.subplot(0, 2)
+    plot.add_points(sampled_vertices.copy(), scalars=displacements, cmap='viridis')
     plot.link_views()
     plot.show()
 
