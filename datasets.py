@@ -306,7 +306,10 @@ class INRDataset(TetmeshDataset):
         if th.is_tensor(num_samples):
             num_samples = num_samples.cpu().item()
 
-        sampled_vertices, sampled_faces, bary_coords = sample_from_surface(self.neutral_surface.points, self.neutral_surface.regular_faces, self.triangle_probabilities, num_samples)
+        sampled_vertices, sampled_faces, bary_coords = sample_from_surface(self.neutral_surface.points, 
+                                                                           self.neutral_surface.regular_faces, 
+                                                                           self.triangle_probabilities, 
+                                                                           num_samples)
 
         _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
         sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
@@ -314,8 +317,8 @@ class INRDataset(TetmeshDataset):
         deformed_vertices = self.deformed_surface.points[sampled_faces]
         deformed_vertices = barycentric_sample(deformed_vertices, bary_coords)
 
-        _, deformed_vertices = self.deformed_kdtree.query(deformed_vertices)
-        deformed_vertices = self.deformed_high_res_surface.points[deformed_vertices]
+        _, deformed_indices = self.deformed_kdtree.query(deformed_vertices)
+        deformed_vertices = self.deformed_high_res_surface.points[deformed_indices]
 
         sampled_vertices = th.tensor(sampled_vertices).to(self.device).float()
         deformed_vertices = th.tensor(deformed_vertices).to(self.device).float()
