@@ -311,8 +311,8 @@ class INRDataset(TetmeshDataset):
                                                                            self.triangle_probabilities, 
                                                                            num_samples)
 
-        # _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
-        # sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
+        _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
+        sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
 
         deformed_vertices = self.deformed_surface.points[sampled_faces]
         deformed_vertices = barycentric_sample(deformed_vertices, bary_coords)
