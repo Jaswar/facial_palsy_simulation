@@ -254,6 +254,10 @@ class INRDataset(TetmeshDataset):
 
         self.epilogue()
 
+    def epilogue(self):
+        super(INRDataset, self).epilogue()
+        self.sampled_vertices, self.deformed_vertices = self.__sample_surface(self.neutral_high_res_surface.points.shape[0])
+
     def visualize(self):
         super(INRDataset, self).visualize(
             [self.skull_mask, self.jaw_mask, self.surface_mask, self.tissue_mask]
@@ -311,8 +315,8 @@ class INRDataset(TetmeshDataset):
                                                                            self.triangle_probabilities, 
                                                                            num_samples)
 
-        # _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
-        # sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
+        _, neutral_indices = self.neutral_kdtree.query(sampled_vertices)
+        sampled_vertices = self.neutral_high_res_surface.points[neutral_indices]
 
         deformed_vertices = self.deformed_surface.points[sampled_faces]
         deformed_vertices = barycentric_sample(deformed_vertices, bary_coords)
@@ -326,10 +330,17 @@ class INRDataset(TetmeshDataset):
         deformed_vertices = (deformed_vertices - self.minv) / (self.maxv - self.minv)
         return sampled_vertices, deformed_vertices
 
+    def __select_sampled(self, num_samples):
+        if th.is_tensor(num_samples):
+            num_samples = num_samples.cpu().item()
+
+        idx = np.random.choice(self.sampled_vertices.shape[0], num_samples)
+        return self.sampled_vertices[idx], self.deformed_vertices[idx]
+
     def prepare_for_epoch(self):
         super(INRDataset, self).prepare_for_epoch()
         where_surface = self.epoch_mask == INRDataset.SURFACE_MASK
-        self.epoch_nodes[where_surface], self.epoch_targets[where_surface] = self.__sample_surface(where_surface.sum())
+        self.epoch_nodes[where_surface], self.epoch_targets[where_surface] = self.__select_sampled(where_surface.sum())
     
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)
