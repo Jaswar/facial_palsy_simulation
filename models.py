@@ -209,20 +209,22 @@ class INRModel(BaseModel):
         self.w_skull = w_skull
     
     def process_batch(self, batch):
-        inputs, mask, target = batch
+        inputs, mask, target, weights = batch
         prediction = self(inputs)
         jacobian = self.construct_jacobian(inputs)
-        loss = self.compute_loss(prediction, target, mask, jacobian)
+        loss = self.compute_loss(prediction, target, mask, jacobian, weights)
         return loss
 
-    def compute_loss(self, prediction, target, mask, jacobian):
+    def compute_loss(self, prediction, target, mask, jacobian, weights):
         where_skull = mask == INRDataset.SKULL_MASK
         where_jaw = mask == INRDataset.JAW_MASK
         where_surface = mask == INRDataset.SURFACE_MASK
 
         surface_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
         if where_surface.sum() > 0:
-            surface_loss = th.nn.functional.l1_loss(prediction[where_surface], target[where_surface])
+            surface_loss = th.abs(prediction[where_surface] - target[where_surface]).mean(dim=1)
+            surface_loss = surface_loss * weights[where_surface]
+            surface_loss = surface_loss.mean()
         surface_loss *= self.w_surface
         
         skull_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)

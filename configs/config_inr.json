@@ -7,7 +7,7 @@
     "fourier_features": 8,
     "optimizer": "adam",
     "w_surface": 15.0,
-    "w_deformation": 0.0,
-    "w_jaw": 0.2,
-    "w_skull": 0.2
+    "w_deformation": 0.02,
+    "w_jaw": 1.0,
+    "w_skull": 2.0
 }

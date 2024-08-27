@@ -227,8 +227,13 @@ class INRDataset(TetmeshDataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path, neutral_path, deformed_path,
                  sample=False, num_samples=10000, tol=1.0, stol=1e-5, device='cpu'):
+        self.surface_samples = 5000
+        self.tissue_samples = 3000
+        self.skull_samples = 2000
+        self.jaw_samples = 1000
         super(INRDataset, self).__init__(tetmesh_path, jaw_path, skull_path,
-                                         sample, num_samples, tol, device)
+                                         sample, self.surface_samples + self.tissue_samples + self.skull_samples + self.jaw_samples, 
+                                         tol, device)
         self.stol = stol
         self.neutral_path = neutral_path
         self.deformed_path = deformed_path
@@ -256,7 +261,8 @@ class INRDataset(TetmeshDataset):
 
     def epilogue(self):
         super(INRDataset, self).epilogue()
-        self.sampled_vertices, self.deformed_vertices = self.__sample_surface(self.neutral_high_res_surface.points.shape[0])
+        self.sampled_neutral_vertices, self.sampled_deformed_vertices, self.weights \
+            = self.__presample_surface(self.neutral_high_res_surface.points.shape[0])
 
     def visualize(self):
         super(INRDataset, self).visualize(
@@ -306,7 +312,7 @@ class INRDataset(TetmeshDataset):
         self.mask[self.jaw_mask] = INRDataset.JAW_MASK
         self.mask[self.surface_mask] = INRDataset.SURFACE_MASK
 
-    def __sample_surface(self, num_samples):
+    def __presample_surface(self, num_samples):
         if th.is_tensor(num_samples):
             num_samples = num_samples.cpu().item()
 
@@ -328,23 +334,69 @@ class INRDataset(TetmeshDataset):
         deformed_vertices = th.tensor(deformed_vertices).to(self.device).float()
         sampled_vertices = (sampled_vertices - self.minv) / (self.maxv - self.minv)
         deformed_vertices = (deformed_vertices - self.minv) / (self.maxv - self.minv)
-        return sampled_vertices, deformed_vertices
 
-    def __select_sampled(self, num_samples):
+        smooth_deformed_high_res_surface = self.deformed_high_res_surface.smooth_taubin(pass_band=0.01)
+        curvature = smooth_deformed_high_res_surface.curvature(curv_type='gaussian')
+        curvature = np.log(np.abs(curvature) + 1e-6)
+        curvature = (curvature - np.min(curvature)) / (np.max(curvature) - np.min(curvature))
+        weights = th.tensor(curvature[deformed_indices]).to(self.device).float()
+
+        return sampled_vertices, deformed_vertices, weights
+
+    def __sample_jaw(self, num_samples):
         if th.is_tensor(num_samples):
             num_samples = num_samples.cpu().item()
 
-        idx = np.random.choice(self.sampled_vertices.shape[0], num_samples)
-        return self.sampled_vertices[idx], self.deformed_vertices[idx]
+        idx = np.random.choice(np.where(self.jaw_mask)[0].shape[0], num_samples)
+        jaw_nodes = self.nodes[self.jaw_mask]
+        sampled_jaw = jaw_nodes[idx]
+        return sampled_jaw
+    
+    def __sample_skull(self, num_samples):
+        if th.is_tensor(num_samples):
+            num_samples = num_samples.cpu().item()
+
+        idx = np.random.choice(np.where(self.skull_mask)[0].shape[0], num_samples)
+        skull_nodes = self.nodes[self.skull_mask]
+        sampled_skull = skull_nodes[idx]
+        return sampled_skull
+    
+    def __sample_surface(self, num_samples):
+        if th.is_tensor(num_samples):
+            num_samples = num_samples.cpu().item()
+
+        idx = np.random.choice(self.sampled_neutral_vertices.shape[0], num_samples)
+        sampled_neutral = self.sampled_neutral_vertices[idx]
+        sampled_deformed = self.sampled_deformed_vertices[idx]
+        sampled_weights = self.weights[idx]
+        return sampled_neutral, sampled_deformed, sampled_weights
 
     def prepare_for_epoch(self):
-        super(INRDataset, self).prepare_for_epoch()
-        where_surface = self.epoch_mask == INRDataset.SURFACE_MASK
-        self.epoch_nodes[where_surface], self.epoch_targets[where_surface] = self.__select_sampled(where_surface.sum())
+        tissue_nodes = self.sample_nodes(self.tissue_samples)
+        skull_nodes = self.__sample_skull(self.skull_samples)
+        jaw_nodes = self.__sample_jaw(self.jaw_samples)
+        sampled_neutral, sampled_deformed, weights = self.__sample_surface(self.surface_samples)
+
+        self.epoch_nodes = th.cat([tissue_nodes, skull_nodes, jaw_nodes, sampled_neutral], dim=0)
+        self.epoch_mask = th.zeros(self.epoch_nodes.shape[0])
+        self.epoch_mask[tissue_nodes.shape[0]:tissue_nodes.shape[0] + skull_nodes.shape[0]] = INRDataset.SKULL_MASK
+        self.epoch_mask[tissue_nodes.shape[0] + skull_nodes.shape[0]:tissue_nodes.shape[0] + skull_nodes.shape[0] + jaw_nodes.shape[0]] = INRDataset.JAW_MASK
+        self.epoch_mask[tissue_nodes.shape[0] + skull_nodes.shape[0] + jaw_nodes.shape[0]:] = INRDataset.SURFACE_MASK
+        self.epoch_targets = th.cat([tissue_nodes, skull_nodes, jaw_nodes, sampled_deformed], dim=0)
+        self.epoch_weights = th.cat([th.ones(tissue_nodes.shape[0]).to(self.device), 
+                                     th.ones(skull_nodes.shape[0]).to(self.device), 
+                                     th.ones(jaw_nodes.shape[0]).to(self.device), 
+                                     weights], dim=0)
+
+        idx = th.randperm(self.epoch_nodes.shape[0])
+        self.epoch_nodes = self.epoch_nodes[idx]
+        self.epoch_mask = self.epoch_mask[idx]
+        self.epoch_targets = self.epoch_targets[idx]
+        self.epoch_weights = self.epoch_weights[idx]
     
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)
-        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
+        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx], self.epoch_weights[idx]
         
 
 class SimulatorDataset(TetmeshDataset):
