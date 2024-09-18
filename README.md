@@ -56,6 +56,15 @@ python predict_high_res.py --neutral_path=data/tetmesh_face_surface.obj \
     --model_path=checkpoints/best_model_simulator_017_pair.pth
 ```
 
+INR for the surface:
+```bash
+python train_surface_inr.py --neutral_path=data/tetmesh_face_surface.obj \
+    --neutral_flame_path=../flame-fitting/output/fit_scan_result_neutral_surface_no_landmarks.obj \
+    --deformed_flame_path=../flame-fitting/output/fit_scan_result_001_symmetric_loss_scan.obj \
+    --checkpoint_path=checkpoints/best_model_surface_inr_001.pth \
+    --train
+```
+
 ### Random search
 
 `random_search.py` performs a random search over specified hyperparameters. The following command will launch it:

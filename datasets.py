@@ -51,6 +51,96 @@ def sample_from_tet(nodes, sampled_elements):
     return sampled_points
 
 
+class SurfaceINRDataset(th.utils.data.Dataset):
+    DEFORMABLE_MASK = 0
+    FIXED_MASK = 1
+
+    def __init__(self, neutral_path, neutral_flame_path, deformed_flame_path, 
+                 num_samples=2000, tol=1.0, device='cpu'):
+        super(SurfaceINRDataset, self).__init__()
+        self.neutral_path = neutral_path
+        self.neutral_flame_path = neutral_flame_path
+        self.deformed_flame_path = deformed_flame_path
+        self.num_samples = num_samples
+        self.tol = tol
+        self.device = device
+
+        self.neutral_surface = None
+        self.neutral_flame_surface = None
+        self.deformed_flame_surface = None
+
+        self.fixed_indices = None
+        self.fixed_flame_indices = None
+
+        self.epoch_nodes = None
+        self.epoch_mask = None
+        self.epoch_targets = None
+
+        self.nodes = None
+        self.deformed_nodes = None
+
+        self.__read()
+        self.__detect_fixed()
+        self.__define_nodes()
+        self.__normalize()
+
+        self.nodes = th.tensor(self.nodes).to(self.device).float()
+        self.mask = th.tensor(self.mask).to(self.device).float()
+        self.targets = th.tensor(self.deformed_nodes).to(self.device).float()
+
+    def __read(self):
+        self.neutral_surface = pv.read(self.neutral_path)
+        self.neutral_flame_surface = pv.read(self.neutral_flame_path)
+        self.neutral_flame_surface.points *= 1000  # m to mm
+        self.deformed_flame_surface = pv.read(self.deformed_flame_path)
+        self.deformed_flame_surface.points *= 1000  # m to mm
+
+    def __detect_fixed(self):
+        self.fixed_flame_indices = np.arange(self.neutral_flame_surface.points.shape[0])
+
+        kdtree = KDTree(self.neutral_surface.points)
+        ds, self.fixed_indices = kdtree.query(self.neutral_flame_surface.points)
+
+        in_range = ds < self.tol
+        self.fixed_indices = self.fixed_indices[in_range]
+        self.fixed_flame_indices = self.fixed_flame_indices[in_range]
+
+        self.mask = np.full(self.neutral_surface.points.shape[0], 
+                            fill_value=SurfaceINRDataset.DEFORMABLE_MASK)
+        self.mask[self.fixed_indices] = SurfaceINRDataset.FIXED_MASK
+
+    def __define_nodes(self):
+        self.nodes = self.neutral_surface.points.copy()
+        self.deformed_nodes = self.neutral_surface.points.copy()
+        self.deformed_nodes[self.fixed_indices] = self.deformed_flame_surface.points[self.fixed_flame_indices]
+
+    def __normalize(self):
+        self.minv = np.min(self.nodes)
+        self.maxv = np.max(self.nodes)
+
+        self.nodes = (self.nodes - self.minv) / (self.maxv - self.minv)
+        self.deformed_nodes = (self.deformed_nodes - self.minv) / (self.maxv - self.minv)
+
+    def prepare_for_epoch(self):
+        self.epoch_nodes = self.nodes.clone()
+        self.epoch_mask = self.mask.clone()
+        self.epoch_targets = self.targets.clone()
+
+        idx = th.randperm(self.epoch_nodes.shape[0])
+        self.epoch_nodes = self.epoch_nodes[idx]
+        self.epoch_mask = self.epoch_mask[idx]
+        self.epoch_targets = self.epoch_targets[idx]  
+
+    def __len__(self):
+        return min(self.num_samples, self.nodes.shape[0])
+
+    def __getitem__(self, idx):
+        if th.is_tensor(idx):
+            idx = idx.tolist()
+        
+        return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
+
+
 class TetmeshDataset(th.utils.data.Dataset):
 
     def __init__(self, tetmesh_path, jaw_path, skull_path,

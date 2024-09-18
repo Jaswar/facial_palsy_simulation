@@ -7,8 +7,13 @@ import time
 def visualize_displacements(model, dataset):
     predicted_vertices = model.predict(dataset.nodes).cpu().numpy()
 
-    cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
-    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+    if hasattr(dataset, 'elements'):
+        cells = np.hstack([np.full((dataset.elements.shape[0], 1), 4, dtype=int), dataset.elements])
+        celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+    else:
+        faces = dataset.neutral_surface.regular_faces
+        cells = np.hstack([np.full((faces.shape[0], 1), 3, dtype=int), faces])
+        celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TRIANGLE, dtype=int)
 
     neutral_grid = pv.UnstructuredGrid(cells, celltypes, dataset.nodes.cpu().numpy())
     ground_truth_grid = pv.UnstructuredGrid(cells, celltypes, dataset.deformed_nodes)

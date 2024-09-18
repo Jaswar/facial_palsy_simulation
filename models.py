@@ -2,7 +2,7 @@ import torch as th
 import numpy as np
 from tqdm import tqdm
 import copy
-from datasets import SimulatorDataset, INRDataset
+from datasets import SimulatorDataset, INRDataset, SurfaceINRDataset
 
 # pytorch implementation of procrustes
 # based on https://gist.github.com/mkocabas/54ea2ff3b03260e3fedf8ad22536f427
@@ -193,6 +193,39 @@ class BaseModel(th.nn.Module):
             result = self(data)
         return result
 
+
+class SurfaceINRModel(BaseModel):
+
+    def __init__(self, input_size=3, output_size=3, 
+                 num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
+                 with_fourier=True, fourier_features=10, 
+                 w_deformable=0.02, w_fixed=1.):
+        super(SurfaceINRModel, self).__init__(input_size, output_size, 
+                                       num_hidden_layers, hidden_size, use_sigmoid_output, 
+                                       with_fourier, fourier_features)
+        self.w_deformable = w_deformable
+        self.w_fixed = w_fixed
+
+    def process_batch(self, batch):
+        inputs, mask, target = batch
+        prediction = self(inputs)
+        jacobian = self.construct_jacobian(inputs)
+        loss = self.compute_loss(prediction, target, mask, jacobian)
+        return loss
+    
+    def compute_loss(self, prediction, target, mask, jacobian):
+        where_fixed = mask == SurfaceINRDataset.FIXED_MASK
+
+        fixed_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        if where_fixed.sum() > 0:
+            fixed_loss = th.nn.functional.l1_loss(prediction[where_fixed], target[where_fixed])
+        fixed_loss *= self.w_fixed
+
+        def_loss = deformation_loss(jacobian) * self.w_deformable
+
+        loss = fixed_loss + def_loss
+        return loss
+    
 
 class INRModel(BaseModel):
 
