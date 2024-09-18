@@ -205,6 +205,8 @@ class INRDataset(TetmeshDataset):
         self.__detect_tissue()
         self.__combine_masks()
 
+        self.__replace_surface()
+
         self.normalize()
 
         self.epilogue()
@@ -227,10 +229,10 @@ class INRDataset(TetmeshDataset):
 
     def __detect_surface(self):
         kdtree = KDTree(self.nodes)
-        _, indices = kdtree.query(self.neutral_surface.points)
+        _, self.surface_indices = kdtree.query(self.neutral_surface.points)
         self.surface_mask = np.zeros(self.nodes.shape[0], dtype=bool)
-        self.surface_mask[indices] = True
-        self.deformed_nodes[indices] = self.deformed_surface.points
+        self.surface_mask[self.surface_indices] = True
+        self.deformed_nodes[self.surface_indices] = self.deformed_surface.points
     
     def __detect_tissue(self):
         self.tissue_mask = np.logical_and(np.logical_not(self.skull_mask), np.logical_not(self.jaw_mask))
@@ -241,7 +243,17 @@ class INRDataset(TetmeshDataset):
         self.mask[self.skull_mask] = INRDataset.SKULL_MASK
         self.mask[self.jaw_mask] = INRDataset.JAW_MASK
         self.mask[self.surface_mask] = INRDataset.SURFACE_MASK
-    
+
+    def __replace_surface(self):
+        flame_neutral = pv.read('../flame-fitting/output/fit_scan_result_neutral_surface_no_landmarks.obj')
+        flame_neutral.points = flame_neutral.points * 1000  # m to mm
+        flame_deformed = pv.read('../flame-fitting/output/fit_scan_result_001_symmetric_loss_scan.obj')
+        flame_deformed.points = flame_deformed.points * 1000  # m to mm
+        kdtree = KDTree(flame_neutral.points)
+        _, indices = kdtree.query(self.neutral_surface.points)
+        # self.nodes[self.surface_indices] = flame_neutral.points[indices]
+        self.deformed_nodes[self.surface_indices] = flame_deformed.points[indices]
+
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)
         return self.epoch_nodes[idx], self.epoch_mask[idx], self.epoch_targets[idx]
