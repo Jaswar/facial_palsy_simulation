@@ -22,12 +22,14 @@ def main(args):
 
     dataset = SurfaceINRDataset(args.neutral_path, args.neutral_flame_path, args.deformed_flame_path, 
                                 num_samples=args.num_samples, device=device)
+    dataset.visualize()
     
     model = SurfaceINRModel(num_hidden_layers=config['num_hidden_layers'], 
                      hidden_size=config['hidden_size'], 
                      fourier_features=config['fourier_features'], 
-                     w_deformable=config['w_deformable'],
-                     w_fixed=config['w_fixed'])
+                     w_deformation=config['w_deformation'],
+                     w_flame=config['w_flame'],
+                     w_boundary=config['w_boundary'])
     model = th.compile(model)
     model.to(device)
 

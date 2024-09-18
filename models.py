@@ -199,12 +199,13 @@ class SurfaceINRModel(BaseModel):
     def __init__(self, input_size=3, output_size=3, 
                  num_hidden_layers=3, hidden_size=32, use_sigmoid_output=False, 
                  with_fourier=True, fourier_features=10, 
-                 w_deformable=0.02, w_fixed=1.):
+                 w_deformation=0.02, w_flame=1., w_boundary=1.):
         super(SurfaceINRModel, self).__init__(input_size, output_size, 
                                        num_hidden_layers, hidden_size, use_sigmoid_output, 
                                        with_fourier, fourier_features)
-        self.w_deformable = w_deformable
-        self.w_fixed = w_fixed
+        self.w_deformation = w_deformation
+        self.w_flame = w_flame
+        self.w_boundary = w_boundary
 
     def process_batch(self, batch):
         inputs, mask, target = batch
@@ -214,16 +215,22 @@ class SurfaceINRModel(BaseModel):
         return loss
     
     def compute_loss(self, prediction, target, mask, jacobian):
-        where_fixed = mask == SurfaceINRDataset.FIXED_MASK
+        where_flame = mask == SurfaceINRDataset.FLAME_MASK
+        where_boundary = mask == SurfaceINRDataset.BOUNDARY_MASK
 
-        fixed_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
-        if where_fixed.sum() > 0:
-            fixed_loss = th.nn.functional.l1_loss(prediction[where_fixed], target[where_fixed])
-        fixed_loss *= self.w_fixed
+        flame_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        if where_flame.sum() > 0:
+            flame_loss = th.nn.functional.l1_loss(prediction[where_flame], target[where_flame])
+        flame_loss *= self.w_flame
 
-        def_loss = deformation_loss(jacobian) * self.w_deformable
+        boundary_loss = th.tensor(0., device=prediction.device, dtype=prediction.dtype)
+        if where_boundary.sum() > 0:
+            boundary_loss = th.nn.functional.l1_loss(prediction[where_boundary], target[where_boundary])
+        boundary_loss *= self.w_boundary
 
-        loss = fixed_loss + def_loss
+        def_loss = deformation_loss(jacobian) * self.w_deformation
+
+        loss = flame_loss + boundary_loss + def_loss
         return loss
     
 

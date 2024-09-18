@@ -5,6 +5,7 @@ from tetmesh import Tetmesh
 import pyvista as pv
 import igl
 from scipy.spatial import KDTree
+from common import detect_components
 
 
 # volume of the tetrahedron is 1/6th of the volume of the parallelepiped
@@ -53,16 +54,18 @@ def sample_from_tet(nodes, sampled_elements):
 
 class SurfaceINRDataset(th.utils.data.Dataset):
     DEFORMABLE_MASK = 0
-    FIXED_MASK = 1
+    FLAME_MASK = 1
+    BOUNDARY_MASK = 2
 
     def __init__(self, neutral_path, neutral_flame_path, deformed_flame_path, 
-                 num_samples=2000, tol=1.0, device='cpu'):
+                 num_samples=2000, flame_tol=5.0, boundary_tol=1.0, device='cpu'):
         super(SurfaceINRDataset, self).__init__()
         self.neutral_path = neutral_path
         self.neutral_flame_path = neutral_flame_path
         self.deformed_flame_path = deformed_flame_path
         self.num_samples = num_samples
-        self.tol = tol
+        self.flame_tol = flame_tol
+        self.boundary_tol = boundary_tol
         self.device = device
 
         self.neutral_surface = None
@@ -88,6 +91,27 @@ class SurfaceINRDataset(th.utils.data.Dataset):
         self.mask = th.tensor(self.mask).to(self.device).float()
         self.targets = th.tensor(self.deformed_nodes).to(self.device).float()
 
+    def visualize(self):
+        numpy_nodes = self.nodes.cpu().numpy()
+
+        faces = self.neutral_surface.regular_faces
+        cells = np.hstack([np.full((faces.shape[0], 1), 3, dtype=int), faces])
+        celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TRIANGLE, dtype=int)
+        grid = pv.UnstructuredGrid(cells, celltypes, numpy_nodes)
+        def_grid = pv.UnstructuredGrid(cells, celltypes, self.deformed_nodes)
+        
+        flame_mask = self.mask.cpu().numpy() == SurfaceINRDataset.FLAME_MASK
+        boundary_mask = self.mask.cpu().numpy() == SurfaceINRDataset.BOUNDARY_MASK
+        plot = pv.Plotter(shape=(1, 2))
+        plot.subplot(0, 0)
+        plot.add_mesh(grid, color='lightgray')
+        plot.add_points(numpy_nodes[flame_mask], color='red', point_size=7.)
+        plot.add_points(numpy_nodes[boundary_mask], color='green', point_size=7.)
+        plot.subplot(0, 1)
+        plot.add_mesh(def_grid, color='lightgray')
+        plot.link_views()
+        plot.show()
+
     def __read(self):
         self.neutral_surface = pv.read(self.neutral_path)
         self.neutral_flame_surface = pv.read(self.neutral_flame_path)
@@ -101,18 +125,42 @@ class SurfaceINRDataset(th.utils.data.Dataset):
         kdtree = KDTree(self.neutral_surface.points)
         ds, self.fixed_indices = kdtree.query(self.neutral_flame_surface.points)
 
-        in_range = ds < self.tol
+        in_range = ds < self.flame_tol
         self.fixed_indices = self.fixed_indices[in_range]
         self.fixed_flame_indices = self.fixed_flame_indices[in_range]
 
         self.mask = np.full(self.neutral_surface.points.shape[0], 
                             fill_value=SurfaceINRDataset.DEFORMABLE_MASK)
-        self.mask[self.fixed_indices] = SurfaceINRDataset.FIXED_MASK
+        self.mask[self.fixed_indices] = SurfaceINRDataset.FLAME_MASK
+
+        self.__detect_bound()
+
+    def __detect_bound(self):
+        # edges = self.neutral_surface.extract_feature_edges(boundary_edges=True, 
+        #                                              non_manifold_edges=False, 
+        #                                              manifold_edges=False, 
+        #                                              feature_edges=False)
+        # # the format of lines is (n, a, b) where n is the number of points in the line and a, b are the indices of the points
+        # # they are all stacked into a single array, so we need to seperate them
+        # lines = [(edges.lines[i + 1], edges.lines[i + 2]) for i in range(0, len(edges.lines), 3)]
+        # components = detect_components(lines)
+        # assert len(components) == 2, f'Expected 2 components (outline and mouth), found {len(components)}'
+        # outline_component = components[0]  # 0th component is the outer boundary
+        # outline_component = edges.points[outline_component]
+
+        # edge_kdtree = KDTree(outline_component)
+        # ds, _ = edge_kdtree.query(self.neutral_surface.points)
+        # self.mask[ds < 1e-5] = SurfaceINRDataset.BOUNDARY_MASK
+        boundary_mask = self.neutral_surface.points[:, 2] < (np.min(self.neutral_surface.points[:, 2]) + self.boundary_tol)
+        self.mask[boundary_mask] = SurfaceINRDataset.BOUNDARY_MASK
+
 
     def __define_nodes(self):
         self.nodes = self.neutral_surface.points.copy()
         self.deformed_nodes = self.neutral_surface.points.copy()
         self.deformed_nodes[self.fixed_indices] = self.deformed_flame_surface.points[self.fixed_flame_indices]
+        where_boundary = self.mask == SurfaceINRDataset.BOUNDARY_MASK
+        self.deformed_nodes[where_boundary] = self.nodes[where_boundary]
 
     def __normalize(self):
         self.minv = np.min(self.nodes)

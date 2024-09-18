@@ -4,6 +4,35 @@ import numpy as np
 import time 
 
 
+def detect_components(lines):
+    graph = {}
+    for (a, b) in lines:
+        if a not in graph:
+            graph[a] = []
+        if b not in graph:
+            graph[b] = []
+        graph[a].append(b)
+        graph[b].append(a)
+
+    components = []
+    visited = set()
+    for node in graph:
+        if node in visited:
+            continue
+        component = []
+        stack = [node]
+        while len(stack) > 0:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.append(node)
+            stack.extend(graph[node])
+        components.append(component)
+    components = sorted(components, key=lambda x: len(x), reverse=True)
+    return components
+
+
 def visualize_displacements(model, dataset):
     predicted_vertices = model.predict(dataset.nodes).cpu().numpy()
 
