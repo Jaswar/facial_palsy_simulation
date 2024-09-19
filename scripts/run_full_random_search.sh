@@ -35,7 +35,7 @@ for i in $(seq 1 1000); do
         --deformed_flame_path=../flame-fitting/output/fit_scan_result_001_symmetric_loss_scan.obj \
         --model_path=checkpoints/random_search/best_model_rs_surface_inr_$i.pth \
         --config_path=checkpoints/random_search/best_config_rs_surface_inr_$i.json \
-        --budget=20 \
+        --budget=300 \
         --mode=surface_inr \
         --num_runs=1
 done
