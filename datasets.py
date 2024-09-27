@@ -136,21 +136,6 @@ class SurfaceINRDataset(th.utils.data.Dataset):
         self.__detect_bound()
 
     def __detect_bound(self):
-        # edges = self.neutral_surface.extract_feature_edges(boundary_edges=True, 
-        #                                              non_manifold_edges=False, 
-        #                                              manifold_edges=False, 
-        #                                              feature_edges=False)
-        # # the format of lines is (n, a, b) where n is the number of points in the line and a, b are the indices of the points
-        # # they are all stacked into a single array, so we need to seperate them
-        # lines = [(edges.lines[i + 1], edges.lines[i + 2]) for i in range(0, len(edges.lines), 3)]
-        # components = detect_components(lines)
-        # assert len(components) == 2, f'Expected 2 components (outline and mouth), found {len(components)}'
-        # outline_component = components[0]  # 0th component is the outer boundary
-        # outline_component = edges.points[outline_component]
-
-        # edge_kdtree = KDTree(outline_component)
-        # ds, _ = edge_kdtree.query(self.neutral_surface.points)
-        # self.mask[ds < 1e-5] = SurfaceINRDataset.BOUNDARY_MASK
         boundary_mask = self.neutral_surface.points[:, 2] < (np.min(self.neutral_surface.points[:, 2]) + self.boundary_tol)
         self.mask[boundary_mask] = SurfaceINRDataset.BOUNDARY_MASK
 
@@ -343,8 +328,6 @@ class INRDataset(TetmeshDataset):
         self.__detect_tissue()
         self.__combine_masks()
 
-        self.__replace_surface()
-
         self.normalize()
 
         self.epilogue()
@@ -381,16 +364,6 @@ class INRDataset(TetmeshDataset):
         self.mask[self.skull_mask] = INRDataset.SKULL_MASK
         self.mask[self.jaw_mask] = INRDataset.JAW_MASK
         self.mask[self.surface_mask] = INRDataset.SURFACE_MASK
-
-    def __replace_surface(self):
-        flame_neutral = pv.read('../flame-fitting/output/fit_scan_result_neutral_surface_no_landmarks.obj')
-        flame_neutral.points = flame_neutral.points * 1000  # m to mm
-        flame_deformed = pv.read('../flame-fitting/output/fit_scan_result_001_symmetric_loss_scan.obj')
-        flame_deformed.points = flame_deformed.points * 1000  # m to mm
-        kdtree = KDTree(flame_neutral.points)
-        _, indices = kdtree.query(self.neutral_surface.points)
-        # self.nodes[self.surface_indices] = flame_neutral.points[indices]
-        self.deformed_nodes[self.surface_indices] = flame_deformed.points[indices]
 
     def __getitem__(self, idx):
         idx = super(INRDataset, self).__getitem__(idx)

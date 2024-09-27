@@ -6,6 +6,7 @@ from models import SurfaceINRModel
 from datasets import SurfaceINRDataset
 from common import visualize_displacements, train_model, get_optimizer
 import json
+import pyvista as pv
 
 
 def main(args):
@@ -55,7 +56,12 @@ def main(args):
     if not args.benchmark:
         model.load_state_dict(th.load(args.checkpoint_path))
         visualize_displacements(model, dataset)
-
+        if args.out_surface_path is not None:
+            surface_points = model.predict(dataset.nodes).cpu().numpy()
+            surface_points = surface_points * (dataset.maxv - dataset.minv) + dataset.minv
+            surface = dataset.neutral_surface.copy()
+            surface.points = surface_points
+            pv.save_meshio(args.out_surface_path, surface)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -64,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--deformed_flame_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_surface_inr.json')
     parser.add_argument('--checkpoint_path', type=str, required=True)
+    parser.add_argument('--out_surface_path', type=str, default=None)
 
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--pretrained_path', type=str)
