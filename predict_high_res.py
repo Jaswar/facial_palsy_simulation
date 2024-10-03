@@ -51,7 +51,7 @@ def main(args):
     # only points in the mouth area that are too far away should be removed
     proj_in_bounds = np.logical_or(dp < 1e-3, ~mouth_roi)
     d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
-    in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d)
+    in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d) if not args.close_mouth else d3d < args.tol_3d
     high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
     print('Points removed')
 
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--tol_3d', type=float, default=20.0)
+    parser.add_argument('--close_mouth', action='store_true')
     args = parser.parse_args()
     main(args)
 

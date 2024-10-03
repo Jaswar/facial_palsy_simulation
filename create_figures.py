@@ -2,12 +2,15 @@ import torch as th
 import numpy as np
 import pyvista as pv
 from models import SimulatorModel, INRModel
+from actuation_predictor import ActuationPredictor
 import igl
 import argparse
 import json
 from obj_parser import ObjParser
 from common import detect_components
+from tetmesh import Tetmesh
 import os
+# os.system('/usr/bin/Xvfb :99 -screen 0 1024x768x24 &')
 os.environ['DISPLAY'] = ':99'
 
 def visualize(surface, plot, index, camera_position, rgb):
@@ -34,7 +37,7 @@ def get_model(args, model_type):
                         fourier_features=config['fourier_features'])
         model = th.compile(model)
         model.load_state_dict(th.load(args.simulator_model_path))
-    else:
+    elif model_type == 'inr_healthy':
         with open(args.inr_config_path, 'r') as f:
             config = json.load(f)
 
@@ -42,7 +45,16 @@ def get_model(args, model_type):
                         hidden_size=config['hidden_size'], 
                         fourier_features=config['fourier_features'])
         model = th.compile(model)
-        model.load_state_dict(th.load(args.inr_model_path))
+        model.load_state_dict(th.load(args.healthy_inr_model_path))
+    elif model_type == 'inr_unhealthy':
+        with open(args.inr_config_path, 'r') as f:
+            config = json.load(f)
+
+        model = INRModel(num_hidden_layers=config['num_hidden_layers'], 
+                        hidden_size=config['hidden_size'], 
+                        fourier_features=config['fourier_features'])
+        model = th.compile(model)
+        model.load_state_dict(th.load(args.unhealthy_inr_model_path))
     return model
 
 
@@ -82,7 +94,7 @@ def predict_high_res(args, device, plot, index, camera_position, rgb, model_type
     # only points in the mouth area that are too far away should be removed
     proj_in_bounds = np.logical_or(dp < 1e-3, ~mouth_roi)
     d3d, _, _ = igl.point_mesh_squared_distance(high_res_surface.points, surface.points, surface.regular_faces)
-    in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d)
+    in_bounds = np.logical_and(proj_in_bounds, d3d < args.tol_3d) if not args.close_mouth else d3d < args.tol_3d
     high_res_surface, _ = high_res_surface.remove_points(~in_bounds)
     print('Points removed')
 
@@ -121,11 +133,51 @@ def predict_low_res(args, device, plot, index, camera_position, rgb, model_type)
     visualize(surface, plot, index, camera_position, rgb)    
 
 
-def visualize_original_high_res(arguments, plot, index, camera_position, rgb):
-    surface = pv.PolyData(arguments.original_high_res_path)
+def predict_actuations(args, device, plot, index, camera_position):
+    predictor = ActuationPredictor(args.healthy_inr_model_path, 
+                                             args.inr_config_path, 
+                                             args.tetmesh_path, 
+                                             args.contour_path, 
+                                             args.reflected_contour_path, 
+                                             secondary_model_path=args.unhealthy_inr_model_path, 
+                                             device=device)
+    A, _ = predictor.predict(th.tensor(predictor.nodes).float().to(device))
+    _, s, _ = th.svd(A)
+    actuations = th.sum(s, dim=1).cpu().numpy()
+
+    points = predictor.nodes
+    points[:, 0] -= camera_position[0]
+    points[:, 1] -= camera_position[1]
+    camera_position = [0, 0, camera_position[2]]
+
+    cells = np.hstack([np.full((predictor.elements.shape[0], 1), 4, dtype=int), predictor.elements])
+    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+    neutral_grid = pv.UnstructuredGrid(cells, celltypes, points)
+    neutral_grid['actuations'] = actuations
+
+    plot.subplot(0, index)
+    plot.view_xy()
+    plot.set_viewup([0, -1, 0])
+    plot.set_position(camera_position)
+    plot.add_mesh(neutral_grid.copy(), scalars='actuations', clim=(2, 4), cmap='RdBu', show_scalar_bar=False)
+
+
+def visualize_mesh(mesh_path, plot, index, camera_position, rgb):
+    surface = pv.PolyData(mesh_path)
     visualize(surface, plot, index, camera_position, rgb)
 
 
+# for actuations:
+# 1. original high-res
+# 2. registered low-res
+# 3. predicted low-res healthy (INR)
+# 4. predicted high-res healthy (INR) - optional
+# 5. predicted low-res unhealthy (INR)
+# 6. predicted high-res unheatlhy (INR) - optional
+# 7. predicted actuations
+# 8. predicted simulator low-res
+# 9. predicted simulator high-res
+# 10. predicted simulator high-res (no rgb) - optional
 def main(args):
     if th.cuda.is_available():
         device = 'cuda'
@@ -139,29 +191,38 @@ def main(args):
     z_coord = np.max(neutral_surface.points[:, 2]) + 400
     camera_position = [x_coord, y_coord, z_coord]
 
-    plot = pv.Plotter(off_screen=True, shape=(1, 6))
+    plot = pv.Plotter(off_screen=True, shape=(1, 7))
     
-    visualize_original_high_res(args, plot, 0, camera_position, True)
-    predict_low_res(args, device, plot, 1, camera_position, False, 'inr')
-    predict_high_res(args, device, plot, 2, camera_position, True, 'inr')
-    predict_low_res(args, device, plot, 3, camera_position, False, 'simulator')
-    predict_high_res(args, device, plot, 4, camera_position, True, 'simulator')
-    predict_high_res(args, device, plot, 5, camera_position, False, 'simulator')
+    visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
+    visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
+    predict_low_res(args, device, plot, 2, camera_position, False, 'inr_healthy')
+    predict_low_res(args, device, plot, 3, camera_position, False, 'inr_unhealthy')
+    predict_actuations(args, device, plot, 4, camera_position)
+    predict_low_res(args, device, plot, 5, camera_position, False, 'simulator')
+    predict_high_res(args, device, plot, 6, camera_position, True, 'simulator')
 
-    plot.screenshot(args.save_path, window_size=(500 * 6, 800))
+    plot.screenshot(args.save_path, window_size=(500 * 7, 800))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--high_res_path', type=str, required=True)
+
+    parser.add_argument('--tetmesh_path', type=str, required=True)
+    parser.add_argument('--contour_path', type=str, required=True)
+    parser.add_argument('--reflected_contour_path', type=str, required=True)
+
     parser.add_argument('--original_high_res_path', type=str, required=True)
+    parser.add_argument('--original_low_res_path', type=str, required=True)
     parser.add_argument('--simulator_model_path', type=str, required=True)
     parser.add_argument('--simulator_config_path', type=str, default='configs/config_simulation.json')
-    parser.add_argument('--inr_model_path', type=str, required=True)
+    parser.add_argument('--healthy_inr_model_path', type=str, required=True)
+    parser.add_argument('--unhealthy_inr_model_path', type=str, required=False)
     parser.add_argument('--inr_config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--save_path', type=str, required=True)
     parser.add_argument('--tol_3d', type=float, default=20.0)
+    parser.add_argument('--close_mouth', action='store_true')
     args = parser.parse_args()
     main(args)
 
