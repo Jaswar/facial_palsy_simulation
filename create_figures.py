@@ -26,6 +26,20 @@ def visualize(surface, plot, index, camera_position, rgb):
     else:
         plot.add_mesh(surface, color='lightblue')
 
+def visualize_tetmesh(points, elements, plot, index, camera_position):
+    points[:, 0] -= camera_position[0]
+    points[:, 1] -= camera_position[1]
+    camera_position = [0, 0, camera_position[2]]
+    plot.subplot(0, index)
+    plot.view_xy()
+    plot.set_viewup([0, -1, 0])
+    plot.set_position(camera_position)
+
+    cells = np.hstack([np.full((elements.shape[0], 1), 4, dtype=int), elements])
+    celltypes = np.full(cells.shape[0], fill_value=pv.CellType.TETRA, dtype=int)
+    neutral_grid = pv.UnstructuredGrid(cells, celltypes, points)
+    plot.add_mesh(neutral_grid, color='lightblue')
+
 
 def get_model(args, model_type):
     if model_type == 'simulator':
@@ -133,6 +147,23 @@ def predict_low_res(args, device, plot, index, camera_position, rgb, model_type)
     visualize(surface, plot, index, camera_position, rgb)    
 
 
+def predict_low_res_tetmesh(args, device, plot, index, camera_position, model_type):
+    points, elements, _ = Tetmesh.read_tetgen_file(args.tetmesh_path)
+
+    maxv = np.max(points)
+    minv = np.min(points)
+    points = (points - minv) / (maxv - minv)
+
+    model = get_model(args, model_type)    
+    model.to(device)
+    
+    inputs = th.tensor(points).float().to(device)
+    outputs = model.predict(inputs).cpu().numpy()
+    outputs = outputs * (maxv - minv) + minv
+    
+    visualize_tetmesh(outputs, elements, plot, index, camera_position)  
+
+
 def predict_actuations(args, device, plot, index, camera_position):
     predictor = ActuationPredictor(args.healthy_inr_model_path, 
                                              args.inr_config_path, 
@@ -195,10 +226,10 @@ def main(args):
     
     visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
     visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
-    predict_low_res(args, device, plot, 2, camera_position, False, 'inr_healthy')
-    predict_low_res(args, device, plot, 3, camera_position, False, 'inr_unhealthy')
+    predict_low_res_tetmesh(args, device, plot, 2, camera_position, 'inr_healthy')
+    predict_low_res_tetmesh(args, device, plot, 3, camera_position, 'inr_unhealthy')
     predict_actuations(args, device, plot, 4, camera_position)
-    predict_low_res(args, device, plot, 5, camera_position, False, 'simulator')
+    predict_low_res_tetmesh(args, device, plot, 5, camera_position, 'simulator')
     predict_high_res(args, device, plot, 6, camera_position, True, 'simulator')
 
     plot.screenshot(args.save_path, window_size=(500 * 7, 800))
