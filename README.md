@@ -67,17 +67,18 @@ python train_surface_inr.py --neutral_path=data/tetmesh_face_surface.obj \
 
 Creating figures:
 ```bash
-python create_figures.py --neutral_path=data/tetmesh_face_surface.obj \ 
-    --high_res_path=../medusa_scans/rawMeshes_ply/take_001.ply \ 
-    --simulator_model_path=checkpoints/best_model_simulator_001_pair.pth \ 
+python create_figures.py --neutral_path=data/tetmesh_face_surface.obj \
+    --high_res_path=../medusa_scans/rawMeshes_ply/take_001.ply \
+    --simulator_model_path=checkpoints/best_model_simulator_001_pair.pth \
     --healthy_inr_model_path=checkpoints/best_model_001_pair_healthy.pth \
-    --unhealthy_inr_model_path=checkpoints/best_model_001_pair_unhealthy.pth \ 
+    --unhealthy_inr_model_path=checkpoints/best_model_001_pair_unhealthy.pth \
     --original_high_res_path=../medusa_scans/rawMeshes_ply/take_002.ply \
-    --original_low_res_path=data/ground_truths/deformed_surface_001.obj \ 
+    --original_low_res_path=data/ground_truths/deformed_surface_001.obj \
     --tetmesh_path=data/tetmesh \
     --contour_path=data/tetmesh_contour.obj \
     --reflected_contour_path=data/tetmesh_contour_ref_deformed.obj \
-    --save_path=screenshots/figure_001.png
+    --save_path=screenshots/figure_001.png \
+    --flame_path=../flame-fitting/output/fit_scan_result_001_neutral_midpoint.obj
 ```
 
 ### Random search

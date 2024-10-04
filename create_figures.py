@@ -26,6 +26,7 @@ def visualize(surface, plot, index, camera_position, rgb):
     else:
         plot.add_mesh(surface, color='lightblue')
 
+
 def visualize_tetmesh(points, elements, plot, index, camera_position):
     points[:, 0] -= camera_position[0]
     points[:, 1] -= camera_position[1]
@@ -193,10 +194,39 @@ def predict_actuations(args, device, plot, index, camera_position):
     plot.add_mesh(neutral_grid.copy(), scalars='actuations', clim=(2, 4), cmap='RdBu', show_scalar_bar=False)
 
 
+def visualize_flame_model(model_path, plot, index, camera_position):
+    surface = pv.PolyData(model_path)
+    surface.points *= 1000  # convert to the correct scale (mm)
+    visualize(surface, plot, index, camera_position, False)
+
+
+def visualize_mirrored_expression(neutral_surface_path, expression_surface_path, plot, index, camera_position):
+    neutral_surface = pv.PolyData(neutral_surface_path)
+    expression_surface = pv.PolyData(expression_surface_path)
+    midpoint = np.mean(neutral_surface.points[:, 0])
+    to_remove = neutral_surface.points[:, 0] > midpoint
+    expression_surface, _ = expression_surface.remove_points(to_remove)
+
+    pv_vertices, pv_faces = expression_surface.points, expression_surface.faces.reshape(-1, 4)[:, 1:]
+    new_pv_vertices = np.vstack([pv_vertices, pv_vertices])
+    new_pv_vertices[pv_vertices.shape[0]:, 0] = 2 * midpoint - new_pv_vertices[pv_vertices.shape[0]:, 0]
+    new_pv_faces = np.vstack([pv_faces, pv_faces + pv_vertices.shape[0]])
+    new_pv_scan = pv.PolyData(new_pv_vertices, np.hstack([np.full((new_pv_faces.shape[0], 1), 3), new_pv_faces]))
+
+    visualize(new_pv_scan, plot, index, camera_position, False)
+
+
 def visualize_mesh(mesh_path, plot, index, camera_position, rgb):
     surface = pv.PolyData(mesh_path)
     visualize(surface, plot, index, camera_position, rgb)
 
+# for FLAME:
+# 1. original high-res
+# 2. registered low-res
+# 3. flipped mesh
+# 4. fitted FLAME model
+# 5. predicted low-res 
+# 6. predicted high-res
 
 # for actuations:
 # 1. original high-res
@@ -222,23 +252,35 @@ def main(args):
     z_coord = np.max(neutral_surface.points[:, 2]) + 400
     camera_position = [x_coord, y_coord, z_coord]
 
-    plot = pv.Plotter(off_screen=True, shape=(1, 7))
+    plot = pv.Plotter(off_screen=True, shape=(1, 6))
     
+    # approach 1 plot:
     visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
     visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
-    predict_low_res_tetmesh(args, device, plot, 2, camera_position, 'inr_healthy')
-    predict_low_res_tetmesh(args, device, plot, 3, camera_position, 'inr_unhealthy')
-    predict_actuations(args, device, plot, 4, camera_position)
-    predict_low_res_tetmesh(args, device, plot, 5, camera_position, 'simulator')
-    predict_high_res(args, device, plot, 6, camera_position, True, 'simulator')
+    visualize_mirrored_expression(args.neutral_path, args.original_low_res_path, plot, 2, camera_position)
+    visualize_flame_model(args.flame_path, plot, 3, camera_position)
+    predict_low_res(args, device, plot, 4, camera_position, False, 'inr_healthy')
+    predict_high_res(args, device, plot, 5, camera_position, True, 'inr_healthy')
 
-    plot.screenshot(args.save_path, window_size=(500 * 7, 800))
+
+    # approach 2 plots:
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
+    # visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
+    # predict_low_res_tetmesh(args, device, plot, 2, camera_position, 'inr_healthy')
+    # predict_low_res_tetmesh(args, device, plot, 3, camera_position, 'inr_unhealthy')
+    # predict_actuations(args, device, plot, 4, camera_position)
+    # predict_low_res_tetmesh(args, device, plot, 5, camera_position, 'simulator')
+    # predict_high_res(args, device, plot, 6, camera_position, True, 'simulator')
+
+    plot.screenshot(args.save_path, window_size=(500 * 6, 800))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--neutral_path', type=str, required=True)
     parser.add_argument('--high_res_path', type=str, required=True)
+
+    parser.add_argument('--flame_path', type=str, required=True)
 
     parser.add_argument('--tetmesh_path', type=str, required=True)
     parser.add_argument('--contour_path', type=str, required=True)
@@ -250,7 +292,7 @@ if __name__ == '__main__':
     parser.add_argument('--simulator_config_path', type=str, default='configs/config_simulation.json')
     parser.add_argument('--healthy_inr_model_path', type=str, required=True)
     parser.add_argument('--unhealthy_inr_model_path', type=str, required=False)
-    parser.add_argument('--inr_config_path', type=str, default='configs/config_simulation.json')
+    parser.add_argument('--inr_config_path', type=str, default='configs/config_inr.json')
     parser.add_argument('--save_path', type=str, required=True)
     parser.add_argument('--tol_3d', type=float, default=20.0)
     parser.add_argument('--close_mouth', action='store_true')
