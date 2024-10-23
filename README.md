@@ -53,10 +53,10 @@ Next, the network for the unhealthy side has to be trained. For this, the surfac
 
 ```bash
 python flip_surface.py --neutral_surface_path=data/tetmesh_face_surface.obj \
-    --deformed_surface_path=data/ground_truths/deformed_surface_017.obj \
+    --deformed_surface_path=data/ground_truths/deformed_surface_001.obj \
     --contour_path=data/tetmesh_contour.obj \
     --reflected_contour_path=data/tetmesh_contour_ref_deformed.obj \
-    --deformed_out_path=data/deformed_out.obj
+    --deformed_out_path=data/deformed_out_001.obj
 ```
 
 The second network can then be trained as follows.
@@ -66,7 +66,7 @@ python train_inr.py --tetmesh_path=data/tetmesh \
     --jaw_path=data/jaw.obj \
     --skull_path=data/skull.obj \
     --neutral_path=data/tetmesh_face_surface.obj \
-    --deformed_path=data/ground_truths/deformed_surface_001.obj \
+    --deformed_path=data/deformed_out_001.obj \
     --checkpoint_path=checkpoints/best_model_001_pair_unhealthy.pth \
     --train
 ```
