@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--sample', action='store_true')
 
     parser.add_argument('--train', action='store_true')
-    parser.add_argument('--epochs', type=int, default=300)
+    parser.add_argument('--epochs', type=int, default=10000)
     parser.add_argument('--num_samples', type=int, default=10000)
     parser.add_argument('--print_interval', type=int, default=1)
     parser.add_argument('--vis_interval', type=int, default=1000)

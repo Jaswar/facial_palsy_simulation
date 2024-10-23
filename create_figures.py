@@ -246,24 +246,26 @@ def main(args):
         device = 'cpu'
     print(f'Using device: {device}')
 
+    # pv.global_theme.transparent_background = True
+
     neutral_surface = pv.PolyData(args.neutral_path)
     x_coord = np.mean(neutral_surface.points[:, 0])
     y_coord = np.mean(neutral_surface.points[:, 1])
     z_coord = np.max(neutral_surface.points[:, 2]) + 400
     camera_position = [x_coord, y_coord, z_coord]
 
-    plot = pv.Plotter(off_screen=True, shape=(1, 6))
+    plot = pv.Plotter(off_screen=True, shape=(1, 1))
     
-    # approach 1 plot:
-    visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
-    visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
-    visualize_mirrored_expression(args.neutral_path, args.original_low_res_path, plot, 2, camera_position)
-    visualize_flame_model(args.flame_path, plot, 3, camera_position)
-    predict_low_res(args, device, plot, 4, camera_position, False, 'inr_healthy')
-    predict_high_res(args, device, plot, 5, camera_position, True, 'inr_healthy')
+    # approach 1 result plot:
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
+    # visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
+    # visualize_mirrored_expression(args.neutral_path, args.original_low_res_path, plot, 2, camera_position)
+    # visualize_flame_model(args.flame_path, plot, 3, camera_position)
+    # predict_low_res(args, device, plot, 4, camera_position, False, 'inr_healthy')
+    # predict_high_res(args, device, plot, 5, camera_position, True, 'inr_healthy')
 
 
-    # approach 2 plots:
+    # approach 2 result plots:
     # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
     # visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
     # predict_low_res_tetmesh(args, device, plot, 2, camera_position, 'inr_healthy')
@@ -272,7 +274,56 @@ def main(args):
     # predict_low_res_tetmesh(args, device, plot, 5, camera_position, 'simulator')
     # predict_high_res(args, device, plot, 6, camera_position, True, 'simulator')
 
-    plot.screenshot(args.save_path, window_size=(500 * 6, 800))
+    # approach 2 method plot (one at a time):
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
+    # visualize_mesh(args.original_low_res_path, plot, 0, camera_position, False)
+    # predict_low_res_tetmesh(args, device, plot, 0, camera_position, 'inr_healthy')
+    # predict_low_res_tetmesh(args, device, plot, 0, camera_position, 'inr_unhealthy')
+    # predict_actuations(args, device, plot, 0, camera_position)
+    # predict_low_res_tetmesh(args, device, plot, 0, camera_position, 'simulator')
+    # predict_high_res(args, device, plot, 0, camera_position, False, 'simulator')
+
+    # approach 1 method plot (one at a time):
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, False)
+    # visualize_mirrored_expression(args.neutral_path, args.original_low_res_path, plot, 0, camera_position)
+    # visualize_flame_model(args.flame_path, plot, 0, camera_position)
+    # predict_low_res(args, device, plot, 0, camera_position, False, 'inr_healthy')
+    # predict_high_res(args, device, plot, 0, camera_position, False, 'inr_healthy')
+
+    # appendix plots
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, True)
+
+    # new preprocessing
+    # visualize_mesh(args.original_high_res_path, plot, 0, camera_position, False)
+    # visualize_mesh(args.original_low_res_path, plot, 1, camera_position, False)
+
+    # new approach 1
+    # visualize_mirrored_expression(args.neutral_path, args.original_low_res_path, plot, 0, camera_position)
+    # visualize_flame_model(args.flame_path, plot, 1, camera_position)
+    # predict_low_res(args, device, plot, 2, camera_position, False, 'inr_healthy')
+    # predict_high_res(args, device, plot, 3, camera_position, False, 'inr_healthy')
+
+    # new approach 2
+    # predict_low_res_tetmesh(args, device, plot, 0, camera_position, 'inr_healthy')
+    # predict_low_res_tetmesh(args, device, plot, 1, camera_position, 'inr_unhealthy')
+    # predict_actuations(args, device, plot, 2, camera_position)
+    # predict_low_res_tetmesh(args, device, plot, 3, camera_position, 'simulator')
+    # predict_high_res(args, device, plot, 4, camera_position, False, 'simulator')
+
+    # plot.screenshot(args.save_path, window_size=(500 * 1, 800))
+
+    # original expressions
+    folder = os.path.dirname(args.original_high_res_path)
+    for file in os.listdir(folder):
+        if not file.endswith('.obj'):
+            continue
+
+        print(f'Processing {file}')
+        plot = pv.Plotter(off_screen=True, shape=(1, 1))
+        index = ''.join(c for c in file if c.isdigit())
+        visualize_mesh(os.path.join(folder, file), plot, 0, camera_position, False)
+        plot.screenshot(os.path.join(args.save_path, f'take_{index}.jpg'), window_size=(500 * 1, 800))
+        plot.close()
 
 
 if __name__ == '__main__':
